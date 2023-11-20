@@ -37,9 +37,11 @@ camera robot identifier
   
 robot communication
 - send and receieve data from robot
+- read sensor data
   
 sensor data analysis
 - analyse data received from robot, send to diff machine running camera ML model?
+- check no high temps, est. battery percentage, etc
 
 ## Control Decisions
 
