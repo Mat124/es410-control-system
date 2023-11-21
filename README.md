@@ -21,12 +21,12 @@ should probably work after this with:\
 
 main robot control script
 - decision on what action to send to robot
-- subscribes to gamepad input reader
+- reads from gamepad input reader
   
 gamepad input reader
 - read gamepad, convert to control outputs: L motor, R motor, Weapon motor
-- publishes to main control
-- output: list of (float[0, 1])
+- have gamepad class that models current state, gamepad input updates new state
+- output: left, right, weapon motor as float[-1, 1]
   
 camera ML model (maybe separate program, running on diff machine)
 - read camera, draw box around robots
