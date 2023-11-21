@@ -99,8 +99,15 @@ class GamepadParser:
             self.update_outputs()
 
     def __init__(self, control_scheme = 0):
-        self.gamepad = inputs.devices.gamepads[0]
+        try:
+            self.gamepad = inputs.devices.gamepads[0]
+        except Exception as e:
+            # raise("Issue connecting to gamepad.") # TODO: implement error handling - want to send this to GUI
+            raise e
+
         self.gamepad_model = GamepadModel()
         self.update_control_scheme(control_scheme)
 
-        threading.Thread(target=self.read_gamepad).start()
+        t = threading.Thread(target=self.read_gamepad)
+        t.daemon = True # thread stops when main thread stops
+        t.start()
