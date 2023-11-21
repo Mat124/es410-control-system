@@ -5,7 +5,9 @@ Required gamepad is xbox360 or xboxone
 
 ## Setup
 
-use python 3.11 \
+use python 3.11 or newer \
+install tkinter (for linux, idk for windows): \
+`sudo apt install python3-tk` \
 clone from github\
 make venv:\
 `python3 -m venv venv`\
@@ -21,6 +23,7 @@ should probably work after this with:\
 
 main robot control script
 - decision on what action to send to robot
+- choose between manual and automatic control inputs
 - reads from gamepad input reader
   
 gamepad input reader
@@ -46,3 +49,13 @@ sensor data analysis
 ## Control Decisions
 
 When user presses specific buttons on a gamepad, the system takes over to execute an automated function, e.g. drive towards other robot or similar.
+
+## Design ideas
+
+- add a GUI maybe?
+  - add sensor readings
+  - warnings
+  - battery level
+- add input at start of what control system to use, i.e. if using a hammer or spinner or whatever
+- where will auto weapon use be?
+  - probably main.py so we can do both automatic and manual use (just sum them lol)

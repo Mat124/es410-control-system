@@ -26,7 +26,7 @@ class GamepadModel:
             case "ABS_X" | "ABS_Y" | "ABS_RX" | "ABS_RY":
                 return event.state / 32768.0
             case "ABS_RZ" | "ABS_Z":
-                return event.state / 1024.0
+                return event.state / 1023.0
             case _:
                 return event.state
 
@@ -41,10 +41,12 @@ class GamepadModel:
 class GamepadParser:
 
     control_schemes = [ {
-        "turn": "ABS_X", # -1 to 1 (left to right)
-        "forward": "ABS_RZ", # 0 to 1
-        "reverse": "ABS_Z", # 0 to 1
-        "weapon": "BTN_SOUTH" # 0 to 1 (probably just 0 or 1)
+        "turn": "ABS_X",
+        "forward": "ABS_RZ",
+        "reverse": "ABS_Z",
+        "weapon": "BTN_SOUTH",
+        "toggle_auto_weapon": "BTN_WEST",
+        "toggle_auto_movement": "BTN_NORTH"
         }
     ]
 
@@ -54,14 +56,34 @@ class GamepadParser:
         "weapon": 0
     } # output range [-1, 1]
 
+    autonomousWeapon = False
+    autonomousWeaponHeld = False
+    autonomousMovement = False
+    autonomousMovementHeld = False
+
     def update_control_scheme(self, control_scheme):
         self.control_scheme = control_scheme
 
-    def update_motor_outputs(self): # map turning and acceleration to motor outputs
+    def update_outputs(self): # map turning and acceleration to motor outputs
         turn = self.control_schemes[self.control_scheme]["turn"]
         forward = self.control_schemes[self.control_scheme]["forward"]
         reverse = self.control_schemes[self.control_scheme]["reverse"]
         weapon = self.control_schemes[self.control_scheme]["weapon"]
+        auto_weapon = self.control_schemes[self.control_scheme]["toggle_auto_weapon"]
+        auto_movement = self.control_schemes[self.control_scheme]["toggle_auto_movement"]
+
+        if self.gamepad_model.values[auto_weapon] and not self.autonomousWeaponHeld:
+            self.autonomousWeapon = not self.autonomousWeapon
+            self.autonomousWeaponHeld = True
+        
+        if self.gamepad_model.values[auto_movement] and not self.autonomousMovementHeld:
+            self.autonomousMovement = not self.autonomousMovement
+            self.autonomousMovementHeld = True
+
+        if not self.gamepad_model.values[auto_weapon]:
+            self.autonomousWeaponHeld = False
+        if not self.gamepad_model.values[auto_movement]:
+            self.autonomousMovementHeld = False
 
         self.motor_outputs["left"] = self.gamepad_model.values[turn] + self.gamepad_model.values[forward] - self.gamepad_model.values[reverse]
         self.motor_outputs["right"] = -self.gamepad_model.values[turn] + self.gamepad_model.values[forward] - self.gamepad_model.values[reverse]
@@ -74,7 +96,7 @@ class GamepadParser:
         while True:
             events = self.gamepad.read()
             self.gamepad_model.update_model(events)
-            self.update_motor_outputs()
+            self.update_outputs()
 
     def __init__(self, control_scheme = 0):
         self.gamepad = inputs.devices.gamepads[0]
