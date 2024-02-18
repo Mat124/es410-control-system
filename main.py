@@ -115,7 +115,13 @@ class BluetoothSetup(BaseFrame):
         
         # putting the grid in its place by using
         # grid
-        label.grid(row = 0, column = 4, padx = 10, pady = 10) 
+        label.grid(row = 0, column = 4, padx = 10, pady = 10)
+
+    def connect(self):
+        '''
+        Connect to the robot
+        '''
+        pass
 
 class ControlSchemeChoice(BaseFrame):
     '''

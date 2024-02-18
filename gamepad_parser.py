@@ -100,7 +100,8 @@ class GamepadParser:
 
     def __init__(self, control_scheme = 0):
         try:
-            self.gamepad = inputs.devices.gamepads[0]
+            if len(inputs.devices.gamepads) > 0:
+                self.gamepad = inputs.devices.gamepads[0]
         except Exception as e:
             # raise("Issue connecting to gamepad.") # TODO: implement error handling - want to send this to GUI
             raise e
