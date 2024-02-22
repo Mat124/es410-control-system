@@ -21,7 +21,7 @@ class GamepadModel:
     "BTN_TL": 0
     }
     
-    def normalise_input(self, event): # normalise input to range [-1, 1]
+    def normaliseInput(self, event): # normalise input to range [-1, 1]
         match event.code:
             case "ABS_X" | "ABS_Y" | "ABS_RX" | "ABS_RY":
                 return event.state / 32768.0
@@ -30,9 +30,9 @@ class GamepadModel:
             case _:
                 return event.state
 
-    def update_model(self, events):
+    def updateModel(self, events):
         for event in events:
-            self.values[event.code] = self.normalise_input(event)
+            self.values[event.code] = self.normaliseInput(event)
 
     def __init__(self):
         pass
@@ -50,7 +50,7 @@ class GamepadParser:
         }
     ]
 
-    motor_outputs = {
+    motorOutputs = {
         "left": 0,
         "right": 0,
         "weapon": 0
@@ -61,10 +61,10 @@ class GamepadParser:
     autonomousMovement = False
     autonomousMovementHeld = False
 
-    def update_control_scheme(self, control_scheme):
+    def updateControlScheme(self, control_scheme):
         self.control_scheme = control_scheme
 
-    def update_outputs(self): # map turning and acceleration to motor outputs
+    def updateOutputs(self): # map turning and acceleration to motor outputs
         turn = self.control_schemes[self.control_scheme]["turn"]
         forward = self.control_schemes[self.control_scheme]["forward"]
         reverse = self.control_schemes[self.control_scheme]["reverse"]
@@ -72,31 +72,31 @@ class GamepadParser:
         auto_weapon = self.control_schemes[self.control_scheme]["toggle_auto_weapon"]
         auto_movement = self.control_schemes[self.control_scheme]["toggle_auto_movement"]
 
-        if self.gamepad_model.values[auto_weapon] and not self.autonomousWeaponHeld:
+        if self.gamepadModel.values[auto_weapon] and not self.autonomousWeaponHeld:
             self.autonomousWeapon = not self.autonomousWeapon
             self.autonomousWeaponHeld = True
         
-        if self.gamepad_model.values[auto_movement] and not self.autonomousMovementHeld:
+        if self.gamepadModel.values[auto_movement] and not self.autonomousMovementHeld:
             self.autonomousMovement = not self.autonomousMovement
             self.autonomousMovementHeld = True
 
-        if not self.gamepad_model.values[auto_weapon]:
+        if not self.gamepadModel.values[auto_weapon]:
             self.autonomousWeaponHeld = False
-        if not self.gamepad_model.values[auto_movement]:
+        if not self.gamepadModel.values[auto_movement]:
             self.autonomousMovementHeld = False
 
-        self.motor_outputs["left"] = self.gamepad_model.values[turn] + self.gamepad_model.values[forward] - self.gamepad_model.values[reverse]
-        self.motor_outputs["right"] = -self.gamepad_model.values[turn] + self.gamepad_model.values[forward] - self.gamepad_model.values[reverse]
-        self.motor_outputs["weapon"] = self.gamepad_model.values[weapon]
+        self.motorOutputs["left"] = self.gamepadModel.values[turn] + self.gamepadModel.values[forward] - self.gamepadModel.values[reverse]
+        self.motorOutputs["right"] = -self.gamepadModel.values[turn] + self.gamepadModel.values[forward] - self.gamepadModel.values[reverse]
+        self.motorOutputs["weapon"] = self.gamepadModel.values[weapon]
 
-        for output in self.motor_outputs:
-            self.motor_outputs[output] = max(min(self.motor_outputs[output], 1), -1)
+        for output in self.motorOutputs:
+            self.motorOutputs[output] = max(min(self.motorOutputs[output], 1), -1)
 
     def read_gamepad(self): # read gamepad inputs and update model
         while True:
             events = self.gamepad.read()
-            self.gamepad_model.update_model(events)
-            self.update_outputs()
+            self.gamepadModel.updateModel(events)
+            self.updateOutputs()
 
     def __init__(self, control_scheme = 0):
         try:
@@ -106,8 +106,8 @@ class GamepadParser:
             # raise("Issue connecting to gamepad.") # TODO: implement error handling - want to send this to GUI
             raise e
 
-        self.gamepad_model = GamepadModel()
-        self.update_control_scheme(control_scheme)
+        self.gamepadModel = GamepadModel()
+        self.updateControlScheme(control_scheme)
 
         t = threading.Thread(target=self.read_gamepad)
         t.daemon = True # thread stops when main thread stops
