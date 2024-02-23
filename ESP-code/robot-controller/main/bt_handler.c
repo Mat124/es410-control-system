@@ -1,4 +1,4 @@
-#define BTSTACK_FILE__ "bt_testing.c"
+#define BTSTACK_FILE__ "bt_handler.c"
 
 #include <inttypes.h>
 #include <stdint.h>
@@ -29,6 +29,7 @@ static char lineBuffer[1024];
 extern TaskHandle_t xMotorTaskHandle;
 extern TaskHandle_t xSensorTaskHandle;
 
+extern float ledBrightness;
 extern float rightMotorSpeed;
 extern float leftMotorSpeed;
 extern float weaponMotorSpeed;
@@ -170,6 +171,9 @@ static void packet_handler (uint8_t packet_type, uint16_t channel, uint8_t *pack
         case RFCOMM_DATA_PACKET:
             // packet is array of characters in utf-8
             switch (packet[0]){
+                case 'Z':
+                    ledBrightness = atof((char *)packet + 1);
+                    break;
                 case 'R':
                     rightMotorSpeed = atof((char *)packet + 1);
                     break;

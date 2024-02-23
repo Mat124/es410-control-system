@@ -46,7 +46,8 @@
 #include "btstack_stdio_esp32.h"
 #include "hci_dump.h"
 #include "hci_dump_embedded_stdout.h"
-#include "bt_testing.c"
+
+#include "bt_handler.c"
 
 // include FreeRTOS headers
 #include "freertos/FreeRTOS.h"
@@ -76,6 +77,11 @@
 #define WEAPON_MOTOR_PIN 0
 #define LED_PIN 2
 
+#define LED_CHANNEL LEDC_CHANNEL_0
+#define RIGHT_MOTOR_CHANNEL LEDC_CHANNEL_1
+#define LEFT_MOTOR_CHANNEL LEDC_CHANNEL_2
+#define WEAPON_MOTOR_CHANNEL LEDC_CHANNEL_3
+
 extern int btstack_main(int argc, const char * argv[]);
 
 extern char lineBuffer[1024]; // 1024 bytes
@@ -87,6 +93,7 @@ extern SemaphoreHandle_t lineBufferMutex;
 
 extern uint16_t rfcomm_channel_id;
 
+float ledBrightness = 0;
 float rightMotorSpeed = 0;
 float leftMotorSpeed = 0;
 float weaponMotorSpeed = 0;
@@ -116,18 +123,85 @@ void sensor_task(void *pvParameters){
 }
 
 // motor task
-void motor_task(void *pvParameters){
+void motor_task(void *pvParameters) {
     while (1){
         // update motor outputs (currently only LED)
-        ledc_set_duty(LEDC_HIGH_SPEED_MODE, LEDC_CHANNEL_0, (int)(1024*rightMotorSpeed));
-        ledc_update_duty(LEDC_HIGH_SPEED_MODE, LEDC_CHANNEL_0);
+        // LED
+        ledc_set_duty(LEDC_HIGH_SPEED_MODE, LED_CHANNEL, (int)(1024*ledBrightness));
+        ledc_update_duty(LEDC_HIGH_SPEED_MODE, LED_CHANNEL);
+
+        // RIGHT MOTOR
+        ledc_set_duty(LEDC_HIGH_SPEED_MODE, RIGHT_MOTOR_CHANNEL, (int)(1024*rightMotorSpeed));
+        ledc_update_duty(LEDC_HIGH_SPEED_MODE, RIGHT_MOTOR_CHANNEL);
+
+        // LEFT MOTOR
+        ledc_set_duty(LEDC_HIGH_SPEED_MODE, LEFT_MOTOR_CHANNEL, (int)(1024*leftMotorSpeed));
+        ledc_update_duty(LEDC_HIGH_SPEED_MODE, LEFT_MOTOR_CHANNEL);
+
+        // WEAPON MOTOR
+        ledc_set_duty(LEDC_HIGH_SPEED_MODE, WEAPON_MOTOR_CHANNEL, (int)(1024*weaponMotorSpeed));
+        ledc_update_duty(LEDC_HIGH_SPEED_MODE, WEAPON_MOTOR_CHANNEL);
+
+        // log motor outputs
+        printf("LED: %f, RIGHT: %f, LEFT: %f, WEAPON: %f\n", ledBrightness, rightMotorSpeed, leftMotorSpeed, weaponMotorSpeed);
 
         // suspend task (activate on new data)
         vTaskSuspend(NULL);
     }
 }
 
-int app_main(void){
+void pin_setup() {
+    // timer configuration
+    ledc_timer_config_t ledc_timer = {
+        .duty_resolution = LEDC_TIMER_10_BIT, // 0-1023
+        .freq_hz = 20000, // 20 kHz
+        .speed_mode = LEDC_HIGH_SPEED_MODE,
+        .timer_num = LEDC_TIMER_0
+    };
+    ledc_timer_config(&ledc_timer);
+
+    // LED PIN CHANNEL
+    ledc_channel_config_t led_ledc_channel = {
+        .channel = LED_CHANNEL,
+        .duty = 0,
+        .gpio_num = LED_PIN,
+        .speed_mode = LEDC_HIGH_SPEED_MODE,
+        .timer_sel = LEDC_TIMER_0
+    };
+    ledc_channel_config(&led_ledc_channel);
+
+    // RIGHT MOTOR PIN CHANNEL
+    ledc_channel_config_t rmotor_ledc_channel = {
+        .channel = RIGHT_MOTOR_CHANNEL,
+        .duty = 0,
+        .gpio_num = RIGHT_MOTOR_PIN,
+        .speed_mode = LEDC_HIGH_SPEED_MODE,
+        .timer_sel = LEDC_TIMER_0
+    };
+    ledc_channel_config(&rmotor_ledc_channel);
+
+    // LEFT MOTOR PIN CHANNEL
+    ledc_channel_config_t lmotor_ledc_channel = {
+        .channel = LEFT_MOTOR_CHANNEL,
+        .duty = 0,
+        .gpio_num = LEFT_MOTOR_PIN,
+        .speed_mode = LEDC_HIGH_SPEED_MODE,
+        .timer_sel = LEDC_TIMER_0
+    };
+    ledc_channel_config(&lmotor_ledc_channel);
+
+    // WEAPON MOTOR PIN CHANNEL
+    ledc_channel_config_t wmotor_ledc_channel = {
+        .channel = WEAPON_MOTOR_CHANNEL,
+        .duty = 0,
+        .gpio_num = WEAPON_MOTOR_PIN,
+        .speed_mode = LEDC_HIGH_SPEED_MODE,
+        .timer_sel = LEDC_TIMER_0
+    };
+    ledc_channel_config(&wmotor_ledc_channel);
+}
+
+int app_main(void) {
     // Init mutex
     lineBufferMutex = xSemaphoreCreateMutex();
 
@@ -141,27 +215,11 @@ int app_main(void){
     btstack_main(0, NULL);
 
     // Setup other pins
-    ledc_timer_config_t ledc_timer = {
-        .duty_resolution = LEDC_TIMER_10_BIT,
-        .freq_hz = 5000,
-        .speed_mode = LEDC_HIGH_SPEED_MODE,
-        .timer_num = LEDC_TIMER_0
-    };
-
-    ledc_timer_config(&ledc_timer);
-
-    ledc_channel_config_t ledc_channel = {
-        .channel = LEDC_CHANNEL_0,
-        .duty = 0,
-        .gpio_num = LED_PIN,
-        .speed_mode = LEDC_HIGH_SPEED_MODE,
-        .timer_sel = LEDC_TIMER_0
-    };
-
-    ledc_channel_config(&ledc_channel);
+    pin_setup();
 
     // Start other tasks (reading sensor data, update motor outputs)
     xTaskCreate(motor_task, "MotorTask", 2048, NULL, 5, &xMotorTaskHandle);
+    xTaskCreate(sensor_task, "SensorTask", 2048, NULL, 5, &xSensorTaskHandle);
 
     // Enter run loop (forever)
     btstack_run_loop_execute();

@@ -61,6 +61,7 @@ class bluetoothCommunicator():
         while self.sock is not None:
             try:
                 data = self.sock.recv(4096)
+                print("Received data: ", data)
                 self.sensorDataLock.acquire()
                 self.sensorData.append(data)
                 self.sensorDataExists.set()
@@ -73,6 +74,7 @@ class bluetoothCommunicator():
     def sendMotorControl(self, motorOutputs): # dict: left, right, weapon
         if self.sock is not None:
             try:
+                ledData = "Z" + str(motorOutputs["led"]) + "\n"
                 leftData = "L" + str(motorOutputs["left"]) + "\n"
                 rightData = "R" + str(motorOutputs["right"]) + "\n"
                 weaponData = "W" + str(motorOutputs["weapon"]) + "\n"
@@ -81,6 +83,15 @@ class bluetoothCommunicator():
                 self.sock.send(weaponData.encode())
             except Exception as e:
                 print("Error sending motor control: ", e)
+                self.sock = None
+                return
+            
+    def sendSerialMsg(self, msg):
+        if self.sock is not None:
+            try:
+                self.sock.send(msg.encode())
+            except Exception as e:
+                print("Error sending serial message: ", e)
                 self.sock = None
                 return
         
@@ -100,14 +111,18 @@ if __name__ == "__main__":
     # start sensor thread
     sensorThread = threading.Thread(target=sensorLogger, args=(BT,))
 
-    # wait for keyboard input
-    input("Press Enter to continue...")
+    motorLed = input("Enter 1 for motor control, 2 for LED control: ")
 
-    # send motor control
-    motorOutputs = {"left": 0.5, "right": 0.5, "weapon": 0.5}
+    prepend = ""
+
+    if motorLed == "1":
+        prepend = "R"
+    else:
+        prepend = "Z"
+
     while True:
-        motorOutputs["right"] = input("Enter right motor (LED) output [0, 1]: ")
-        BT.sendMotorControl(motorOutputs)
-
-        # wait for keyboard input
-        # input("Press Enter to continue...")
+        msg = input("Enter speed [0-1] or 'exit': ")
+        if msg == "exit":
+            break
+        BT.sendSerialMsg(prepend + msg + "\n")
+    
