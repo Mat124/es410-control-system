@@ -8,7 +8,6 @@ from PyQt6.QtCore import QCoreApplication
 from PyQt6 import QtBluetooth
 
 sock = None
-serviceDiscovery = None
 
 class bluetoothCommunicator():
 
@@ -19,6 +18,7 @@ class bluetoothCommunicator():
         self.scanForDevices()
         self.sensorDataLock = threading.Lock()
         self.sensorData = []
+        self.sensorDataExists = threading.Event()
 
     def scanForDevices(self):
         self.discoveryAgent = QtBluetooth.QBluetoothDeviceDiscoveryAgent()
@@ -63,6 +63,7 @@ class bluetoothCommunicator():
                 data = self.sock.recv(4096)
                 self.sensorDataLock.acquire()
                 self.sensorData.append(data)
+                self.sensorDataExists.set()
                 self.sensorDataLock.release()
             except Exception as e:
                 print("Error reading from socket: ", e)
@@ -83,24 +84,30 @@ class bluetoothCommunicator():
                 self.sock = None
                 return
         
+def sensorLogger(BT):
+    while True:
+        BT.sensorDataExists.wait()
+        BT.sensorDataLock.acquire()
+        while len(BT.sensorData) > 0:
+            print("Received sensor data: ", BT.sensorData.pop(0))
+        BT.sensorDataExists.clear() # clear inside of lock to prevent sensor reader thread from setting and then this thread clearing
+        BT.sensorDataLock.release()
+        time.sleep(0.1)
 
 if __name__ == "__main__":
     BT = bluetoothCommunicator()
+
+    # start sensor thread
+    sensorThread = threading.Thread(target=sensorLogger, args=(BT,))
 
     # wait for keyboard input
     input("Press Enter to continue...")
 
     # send motor control
     motorOutputs = {"left": 0.5, "right": 0.5, "weapon": 0.5}
-    BT.sendMotorControl(motorOutputs)
-
-    # wait for keyboard input
-    input("Press Enter to continue...")
-
-    # wait for sensor data
     while True:
-        BT.sensorDataLock.acquire()
-        while len(BT.sensorData) > 0:
-            print("Sensor data: ", BT.sensorData.pop(0))
-        BT.sensorDataLock.release()
-        time.sleep(1)
+        motorOutputs["right"] = input("Enter right motor (LED) output [0, 1]: ")
+        BT.sendMotorControl(motorOutputs)
+
+        # wait for keyboard input
+        # input("Press Enter to continue...")
