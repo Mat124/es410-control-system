@@ -128,6 +128,8 @@ void motor_task(void *pvParameters){
 }
 
 int app_main(void){
+    // Init mutex
+    lineBufferMutex = xSemaphoreCreateMutex();
 
     // Enable buffered stdout
     btstack_stdio_init();
