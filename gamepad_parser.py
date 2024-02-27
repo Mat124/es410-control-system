@@ -46,14 +46,16 @@ class GamepadParser:
         "reverse": "ABS_Z",
         "weapon": "BTN_SOUTH",
         "toggle_auto_weapon": "BTN_WEST",
-        "toggle_auto_movement": "BTN_NORTH"
+        "toggle_auto_movement": "BTN_NORTH",
+        "led": "ABS_RY"
         }
     ]
 
     motorOutputs = {
         "left": 0,
         "right": 0,
-        "weapon": 0
+        "weapon": 0,
+        "led": 0
     } # output range [-1, 1]
 
     autonomousWeapon = False
@@ -71,6 +73,7 @@ class GamepadParser:
         weapon = self.control_schemes[self.control_scheme]["weapon"]
         auto_weapon = self.control_schemes[self.control_scheme]["toggle_auto_weapon"]
         auto_movement = self.control_schemes[self.control_scheme]["toggle_auto_movement"]
+        led = self.control_schemes[self.control_scheme]["led"]
 
         if self.gamepadModel.values[auto_weapon] and not self.autonomousWeaponHeld:
             self.autonomousWeapon = not self.autonomousWeapon
@@ -88,6 +91,7 @@ class GamepadParser:
         self.motorOutputs["left"] = self.gamepadModel.values[turn] + self.gamepadModel.values[forward] - self.gamepadModel.values[reverse]
         self.motorOutputs["right"] = -self.gamepadModel.values[turn] + self.gamepadModel.values[forward] - self.gamepadModel.values[reverse]
         self.motorOutputs["weapon"] = self.gamepadModel.values[weapon]
+        self.motorOutputs["led"] = abs(self.gamepadModel.values[led])
 
         for output in self.motorOutputs:
             self.motorOutputs[output] = max(min(self.motorOutputs[output], 1), -1)

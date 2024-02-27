@@ -1,6 +1,8 @@
-import gamepad_parser
+import threading
 import tkinter as tk
 from tkinter import ttk
+from bt_client import bluetoothCommunicator
+from gamepad_parser import GamepadParser
 
 class GUI(tk.Tk):
     '''
@@ -15,37 +17,24 @@ class GUI(tk.Tk):
     - Bluetooth connection setup to the robot
     
     '''
-
-    
-
-    def send_motor_outputs(self):
-        '''
-        Send motor outputs to the robot
-        '''
-        motor_out = {
-            "left": 0.0,
-            "right": 0.0,
-            "weapon": 0.0
-        }
-
-        motor_out["weapon"] = self.gamepad.motor_outputs["weapon"]
-        # if self.gamepad.autonomousWeapon: motor_out["weapon"] += self.autonomous_weapon_output # TODO: implement autonomous weapon control
-
-        if self.gamepad.autonomousMovement:
-            pass
-            # TODO: implement autonomous movement control
-        else:
-            motor_out["left"] = self.gamepad.motor_outputs["left"]
-            motor_out["right"] = self.gamepad.motor_outputs["right"]
-
-        # self.robot_communicator.send_motor_outputs(motor_out) # TODO: implement robot communication
     
     def __init__(self):
         '''
         Initialise GUI
         Create gamepad parser, bluetooth connection, sensor data logger, robot QR code reader, etc.
         '''
-        self.gamepad = gamepad_parser.GamepadParser() # initialise gamepad parser
+        self.gamepad = GamepadParser() # initialise gamepad parser
+
+        self.bt_comm = bluetoothCommunicator() # initialise bluetooth communicator
+
+        self.motorOut = {
+            "left": 0.0,
+            "right": 0.0,
+            "weapon": 0.0,
+            "led": 0.0
+        }
+
+        self.sendMotorOutputs = True
         
         tk.Tk.__init__(self)
         container = tk.Frame(self)
@@ -68,6 +57,9 @@ class GUI(tk.Tk):
         self.title("Fighting Robot Controller")
         self.geometry("800x800")
 
+        self.sendMotorOutputsThread = threading.Thread(target=self.send_motor_outputs)
+        self.sendMotorOutputsThread.start()
+
         self.mainloop()
     
     def show_frame(self, cont):
@@ -76,6 +68,33 @@ class GUI(tk.Tk):
         '''
         frame = self.frames[cont]
         frame.tkraise()
+
+
+    def send_motor_outputs(self):
+        '''
+        Send motor outputs to the robot
+        '''
+        while self.sendMotorOutputs:
+            oldMotorOut = {}
+            for key, value in self.motorOut.items():
+                oldMotorOut[key] = value
+
+            self.motorOut["weapon"] = self.gamepad.motorOutputs["weapon"]
+            # if self.gamepad.autonomousWeapon: motor_out["weapon"] += self.autonomous_weapon_output # TODO: implement autonomous weapon control
+
+            if self.gamepad.autonomousMovement:
+                pass
+                # TODO: implement autonomous movement control
+            else:
+                self.motorOut["left"] = self.gamepad.motorOutputs["left"]
+                self.motorOut["right"] = self.gamepad.motorOutputs["right"]
+                self.motorOut["led"] = self.gamepad.motorOutputs["led"] # delete this after test
+                
+            for key in self.motorOut:
+                if self.motorOut[key] != oldMotorOut[key]:
+                    self.bt_comm.sendMotorControl(self.motorOut)
+                    print("Sent motor control: ", self.motorOut)
+                    break
 
 class BaseFrame(tk.Frame):
     '''
@@ -112,16 +131,14 @@ class BluetoothSetup(BaseFrame):
         BaseFrame.__init__(self, parent, controller)
 
         label = ttk.Label(self, text ="Bluetooth Setup", font = ("Verdana", 35))
+
+        bluetoothConnectButton = ttk.Button(self, text ="Connect to Robot",
+                                            command = controller.bt_comm.connect)
+        bluetoothConnectButton.grid(row = 5, column = 4, padx = 10, pady = 10)
         
         # putting the grid in its place by using
         # grid
         label.grid(row = 0, column = 4, padx = 10, pady = 10)
-
-    def connect(self):
-        '''
-        Connect to the robot
-        '''
-        pass
 
 class ControlSchemeChoice(BaseFrame):
     '''

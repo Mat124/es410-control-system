@@ -170,6 +170,35 @@ static void packet_handler (uint8_t packet_type, uint16_t channel, uint8_t *pack
 
         case RFCOMM_DATA_PACKET:
             // packet is array of characters in utf-8
+            // data split by " ", sent in order of LED, left, right, weapon
+
+            int lower = 0, upper = 0;
+            
+            while (upper < size) {
+                if (packet[upper] == ' '){
+                    packet[upper] = '\0';
+                    switch (packet[lower]) {
+                        case 'Z':
+                            ledBrightness = atof((char *)packet + lower + 1);
+                            break;
+                        case 'R':
+                            rightMotorSpeed = atof((char *)packet + lower + 1);
+                            break;
+                        case 'L':
+                            leftMotorSpeed = atof((char *)packet + lower + 1);
+                            break;
+                        case 'W':
+                            weaponMotorSpeed = atof((char *)packet + lower + 1);
+                            break;
+                        default:
+                            break;
+                    }
+                    lower = upper + 1;
+                    upper = lower;
+                }
+                upper++;
+            }
+
             switch (packet[0]){
                 case 'Z':
                     ledBrightness = atof((char *)packet + 1);
