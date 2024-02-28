@@ -72,9 +72,9 @@
 #endif
 #endif
 
-#define RIGHT_MOTOR_PIN 0 // TODO: set correct pin
-#define LEFT_MOTOR_PIN 0
-#define WEAPON_MOTOR_PIN 0
+#define RIGHT_MOTOR_PIN 21
+#define LEFT_MOTOR_PIN 18
+#define WEAPON_MOTOR_PIN 19
 #define LED_PIN 2
 
 #define LED_CHANNEL LEDC_CHANNEL_0
