@@ -47,8 +47,6 @@
 #include "hci_dump.h"
 #include "hci_dump_embedded_stdout.h"
 
-#include "bt_handler.c"
-
 // include FreeRTOS headers
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -73,11 +71,11 @@
 #endif
 
 #define RIGHT_MOTOR_PIN 25
-#define RIGHT_MOTOR_DIR_PIN GPIO_NUM_26
+#define RIGHT_MOTOR_DIR_PIN 26
 #define LEFT_MOTOR_PIN 27
-#define LEFT_MOTOR_DIR_PIN GPIO_NUM_9
+#define LEFT_MOTOR_DIR_PIN 9
 #define WEAPON_MOTOR_PIN 10
-#define WEAPON_MOTOR_DIR_PIN GPIO_NUM_13
+#define WEAPON_MOTOR_DIR_PIN 13
 #define LED_PIN 2
 
 #define LED_CHANNEL LEDC_CHANNEL_0
@@ -85,90 +83,50 @@
 #define LEFT_MOTOR_CHANNEL LEDC_CHANNEL_2
 #define WEAPON_MOTOR_CHANNEL LEDC_CHANNEL_3
 
-extern int btstack_main(int argc, const char * argv[]);
-
-extern char lineBuffer[1024]; // 1024 bytes
-
-TaskHandle_t xMotorTaskHandle = NULL;
-TaskHandle_t xSensorTaskHandle = NULL;
-
-extern SemaphoreHandle_t lineBufferMutex;
-
-extern uint16_t rfcomm_channel_id;
-
 float ledBrightness = 0;
 float rightMotorSpeed = 0;
 float leftMotorSpeed = 0;
 float weaponMotorSpeed = 0;
 
-// sensor task
-void sensor_task(void *pvParameters){
-    float batTemp = 0;
-    float batVoltage = 0;
-    while (1){
-        // create random sensor data for testing
-        batTemp = (float)(rand() % 100);
-        batVoltage = (float)(rand() % 100);
-
-        // write to lineBuffer
-        xSemaphoreTake(lineBufferMutex, portMAX_DELAY);
-        sprintf((char *)lineBuffer, "batTemp:%f batVoltage:%f", batTemp, batVoltage);
-        xSemaphoreGive(lineBufferMutex);
-
-        // request bluetooth send
-        if (rfcomm_channel_id){
-            rfcomm_request_can_send_now_event(rfcomm_channel_id);
-        }
-
-        // wait 3 seconds
-        vTaskDelay(3000 / portTICK_PERIOD_MS);
-    }
-}
-
 // motor task
-void motor_task(void *pvParameters) {
-    while (1){
-        // update motor outputs (currently only LED)
-        // LED
-        ledc_set_duty(LEDC_HIGH_SPEED_MODE, LED_CHANNEL, (int)(1024*ledBrightness));
-        ledc_update_duty(LEDC_HIGH_SPEED_MODE, LED_CHANNEL);
+void motor_task() {
+    // update motor outputs
+    // LED
+    ledc_set_duty(LEDC_HIGH_SPEED_MODE, LED_CHANNEL, (int)(1024*ledBrightness));
+    ledc_update_duty(LEDC_HIGH_SPEED_MODE, LED_CHANNEL);
 
-        // RIGHT MOTOR
-        if (rightMotorSpeed < 0.0) {
-            gpio_set_level(RIGHT_MOTOR_DIR_PIN, 0);
-        }
-        else {
-            gpio_set_level(RIGHT_MOTOR_DIR_PIN, 1);
-        }
-        ledc_set_duty(LEDC_HIGH_SPEED_MODE, RIGHT_MOTOR_CHANNEL, abs((int)(1024*rightMotorSpeed)));
-        ledc_update_duty(LEDC_HIGH_SPEED_MODE, RIGHT_MOTOR_CHANNEL);
-
-        // LEFT MOTOR
-        if (leftMotorSpeed < 0.0) {
-            gpio_set_level(LEFT_MOTOR_DIR_PIN, 0);
-        }
-        else {
-            gpio_set_level(LEFT_MOTOR_DIR_PIN, 1);
-        }
-        ledc_set_duty(LEDC_HIGH_SPEED_MODE, LEFT_MOTOR_CHANNEL, abs((int)(1024*leftMotorSpeed)));
-        ledc_update_duty(LEDC_HIGH_SPEED_MODE, LEFT_MOTOR_CHANNEL);
-
-        // WEAPON MOTOR
-        if (weaponMotorSpeed < 0.0) {
-            gpio_set_level(WEAPON_MOTOR_DIR_PIN, 0);
-        }
-        else {
-            gpio_set_level(WEAPON_MOTOR_DIR_PIN, 1);
-        }
-        ledc_set_duty(LEDC_HIGH_SPEED_MODE, WEAPON_MOTOR_CHANNEL, abs((int)(1024*weaponMotorSpeed)));
-        ledc_update_duty(LEDC_HIGH_SPEED_MODE, WEAPON_MOTOR_CHANNEL);
-
-        // log motor outputs
-        printf("LED: %f, RIGHT: %f, LEFT: %f, WEAPON: %f\n", ledBrightness, rightMotorSpeed, leftMotorSpeed, weaponMotorSpeed);
-
-        // suspend task (activate on new data)
-        vTaskSuspend(NULL);
+    // RIGHT MOTOR
+    if (rightMotorSpeed < 0) {
+        gpio_set_level(RIGHT_MOTOR_DIR_PIN, 0);
     }
+    else {
+        gpio_set_level(RIGHT_MOTOR_DIR_PIN, 1);
+    }
+    ledc_set_duty(LEDC_HIGH_SPEED_MODE, RIGHT_MOTOR_CHANNEL, abs((int)(1024*rightMotorSpeed)));
+    ledc_update_duty(LEDC_HIGH_SPEED_MODE, RIGHT_MOTOR_CHANNEL);
+
+    // LEFT MOTOR
+    if (leftMotorSpeed < 0) {
+        gpio_set_level(LEFT_MOTOR_DIR_PIN, 0);
+    }
+    else {
+        gpio_set_level(LEFT_MOTOR_DIR_PIN, 1);
+    }
+    ledc_set_duty(LEDC_HIGH_SPEED_MODE, LEFT_MOTOR_CHANNEL, abs((int)(1024*leftMotorSpeed)));
+    ledc_update_duty(LEDC_HIGH_SPEED_MODE, LEFT_MOTOR_CHANNEL);
+
+    // WEAPON MOTOR
+    if (weaponMotorSpeed < 0) {
+        gpio_set_level(WEAPON_MOTOR_DIR_PIN, 0);
+    }
+    else {
+        gpio_set_level(WEAPON_MOTOR_DIR_PIN, 1);
+    }
+    ledc_set_duty(LEDC_HIGH_SPEED_MODE, WEAPON_MOTOR_CHANNEL, abs((int)(1024*weaponMotorSpeed)));
+    ledc_update_duty(LEDC_HIGH_SPEED_MODE, WEAPON_MOTOR_CHANNEL);
+
+    // log motor outputs
+    printf("LED: %f, RIGHT: %f, LEFT: %f, WEAPON: %f\n", ledBrightness, rightMotorSpeed, leftMotorSpeed, weaponMotorSpeed);
 }
 
 void pin_setup() {
@@ -192,14 +150,6 @@ void pin_setup() {
     ledc_channel_config(&led_ledc_channel);
 
     // RIGHT MOTOR PIN CHANNEL
-    gpio_config_t rmotor_dir = {
-        .intr_type = GPIO_INTR_DISABLE,
-        .mode = GPIO_MODE_OUTPUT,
-        .pin_bit_mask = RIGHT_MOTOR_DIR_PIN,
-        .pull_down_en = 0,
-        .pull_up_en = 0
-    };
-    gpio_config(&rmotor_dir);
     ledc_channel_config_t rmotor_ledc_channel = {
         .channel = RIGHT_MOTOR_CHANNEL,
         .duty = 0,
@@ -210,14 +160,6 @@ void pin_setup() {
     ledc_channel_config(&rmotor_ledc_channel);
 
     // LEFT MOTOR PIN CHANNEL
-    gpio_config_t lmotor_dir = {
-        .intr_type = GPIO_INTR_DISABLE,
-        .mode = GPIO_MODE_OUTPUT,
-        .pin_bit_mask = LEFT_MOTOR_DIR_PIN,
-        .pull_down_en = 0,
-        .pull_up_en = 0
-    };
-    gpio_config(&lmotor_dir);
     ledc_channel_config_t lmotor_ledc_channel = {
         .channel = LEFT_MOTOR_CHANNEL,
         .duty = 0,
@@ -228,14 +170,6 @@ void pin_setup() {
     ledc_channel_config(&lmotor_ledc_channel);
 
     // WEAPON MOTOR PIN CHANNEL
-    gpio_config_t wmotor_dir = {
-        .intr_type = GPIO_INTR_DISABLE,
-        .mode = GPIO_MODE_OUTPUT,
-        .pin_bit_mask = WEAPON_MOTOR_DIR_PIN,
-        .pull_down_en = 0,
-        .pull_up_en = 0
-    };
-    gpio_config(&wmotor_dir);
     ledc_channel_config_t wmotor_ledc_channel = {
         .channel = WEAPON_MOTOR_CHANNEL,
         .duty = 0,
@@ -247,27 +181,36 @@ void pin_setup() {
 }
 
 int app_main(void) {
-    // Init mutex
-    lineBufferMutex = xSemaphoreCreateMutex();
 
-    // Enable buffered stdout
-    btstack_stdio_init();
-
-    // Configure BTstack for ESP32 VHCI Controller
-    btstack_init();
-
-    // Setup Bluetooth
-    btstack_main(0, NULL);
-
-    // Setup other pins
     pin_setup();
 
-    // Start other tasks (reading sensor data, update motor outputs)
-    xTaskCreate(motor_task, "MotorTask", 2048, NULL, 5, &xMotorTaskHandle);
-    xTaskCreate(sensor_task, "SensorTask", 2048, NULL, 5, &xSensorTaskHandle);
+    char line[1024];
 
-    // Enter run loop (forever)
-    btstack_run_loop_execute();
+    while (1) {
+
+        line[0] = '\0';
+
+        scanf("%1023s", line);
+
+        switch(line[0]) {
+            case 'Z':
+                ledBrightness = atof((char *)line + 1);
+                break;
+            case 'R':
+                rightMotorSpeed = atof((char* )line + 1);
+                break;
+            case 'L':
+                leftMotorSpeed = atof((char *)line + 1);
+                break;
+            case 'W':
+                weaponMotorSpeed = atof((char *)line + 1);
+                break;
+            default:
+                break;
+        }
+
+        motor_task();
+    }
 
     return 0;
 }

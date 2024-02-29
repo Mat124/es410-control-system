@@ -55,7 +55,7 @@ class bluetoothCommunicator():
             self.sock = None
             return 1
         sockReadThread = threading.Thread(target=self.readBluetoothMessage)
-        sockReadThread.start()
+        #sockReadThread.start()
         return 0
 
     def readBluetoothMessage(self):

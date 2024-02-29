@@ -16,8 +16,9 @@ def sensorLogger(BT):
 if __name__ == "__main__":
     BT = bluetoothCommunicator()
 
+    BT.connect()
+
     # start sensor thread
-    sensorThread = threading.Thread(target=sensorLogger, args=(BT,))
 
     motorLed = input("Enter 1 for motor control, 2 for LED control: ")
 
