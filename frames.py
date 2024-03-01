@@ -37,9 +37,20 @@ class BluetoothSetup(BaseFrame):
 
         label = ttk.Label(self, text ="Bluetooth Setup", font = ("Verdana", 35))
 
+        self.robotOptions = [
+            "N/A",
+            "Robot 1",
+            "Robot 2",
+            "Robot 3"
+        ]
+        currSelected = tk.StringVar()
+        currSelected.set(self.robotOptions[0])
+        robotDropdown = ttk.OptionMenu(self, currSelected, *self.robotOptions)
+        robotDropdown.grid(row=5, column=4)
+
         bluetoothConnectButton = ttk.Button(self, text ="Connect to Robot",
                                             command = controller.bt_comm.connect)
-        bluetoothConnectButton.grid(row = 5, column = 4, padx = 10, pady = 10)
+        bluetoothConnectButton.grid(row = 5, column = 5)
         
         # putting the grid in its place by using
         # grid
