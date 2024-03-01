@@ -192,14 +192,7 @@ void pin_setup() {
     ledc_channel_config(&led_ledc_channel);
 
     // RIGHT MOTOR PIN CHANNEL
-    gpio_config_t rmotor_dir = {
-        .intr_type = GPIO_INTR_DISABLE,
-        .mode = GPIO_MODE_OUTPUT,
-        .pin_bit_mask = RIGHT_MOTOR_DIR_PIN,
-        .pull_down_en = 0,
-        .pull_up_en = 0
-    };
-    gpio_config(&rmotor_dir);
+    gpio_set_direction(RIGHT_MOTOR_DIR_PIN, GPIO_MODE_OUTPUT);
     ledc_channel_config_t rmotor_ledc_channel = {
         .channel = RIGHT_MOTOR_CHANNEL,
         .duty = 0,
@@ -210,14 +203,6 @@ void pin_setup() {
     ledc_channel_config(&rmotor_ledc_channel);
 
     // LEFT MOTOR PIN CHANNEL
-    gpio_config_t lmotor_dir = {
-        .intr_type = GPIO_INTR_DISABLE,
-        .mode = GPIO_MODE_OUTPUT,
-        .pin_bit_mask = LEFT_MOTOR_DIR_PIN,
-        .pull_down_en = 0,
-        .pull_up_en = 0
-    };
-    gpio_config(&lmotor_dir);
     ledc_channel_config_t lmotor_ledc_channel = {
         .channel = LEFT_MOTOR_CHANNEL,
         .duty = 0,
@@ -228,14 +213,6 @@ void pin_setup() {
     ledc_channel_config(&lmotor_ledc_channel);
 
     // WEAPON MOTOR PIN CHANNEL
-    gpio_config_t wmotor_dir = {
-        .intr_type = GPIO_INTR_DISABLE,
-        .mode = GPIO_MODE_OUTPUT,
-        .pin_bit_mask = WEAPON_MOTOR_DIR_PIN,
-        .pull_down_en = 0,
-        .pull_up_en = 0
-    };
-    gpio_config(&wmotor_dir);
     ledc_channel_config_t wmotor_ledc_channel = {
         .channel = WEAPON_MOTOR_CHANNEL,
         .duty = 0,
