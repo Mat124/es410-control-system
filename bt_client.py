@@ -6,19 +6,28 @@ import socket
 
 from PyQt6.QtCore import QCoreApplication
 from PyQt6 import QtBluetooth
+from enum import Enum
+
+class status(Enum):
+    UNCONNECTED = 0
+    CONNECTED = 1
+    CONNECTING = 2
+    CONNECTIONERROR = -1
+
+class sensor(Enum):
+    
 
 class bluetoothCommunicator():
 
     def __init__(self, parent = None):
         self.sock = None
+        self.connectionStatus = status.UNCONNECTED
         print("Starting bluetooth test")
         app = QCoreApplication(sys.argv)
 
-    def connect(self):
+    def connect(self, char):
+        self.connectionStatus = status.CONNECTING
         self.deviceInfo = None
-        self.sensorDataLock = threading.Lock()
-        self.sensorData = []
-        self.sensorDataExists = threading.Event()
         self.scanForDevices()
 
     def scanForDevices(self):
@@ -42,6 +51,7 @@ class bluetoothCommunicator():
             self.discoveryAgent.stop()
             while self.connectToRobot():
                 print("Error connecting to robot, retrying")
+                self.connectionStatus = status.CONNECTIONERROR
                 time.sleep(1)
 
     def connectToRobot(self):
@@ -50,6 +60,7 @@ class bluetoothCommunicator():
         print("Connecting to device")
         try:
             self.sock.connect((self.deviceInfo.address().toString(), 1))
+            self.connectionStatus = status.CONNECTED
         except Exception as e:
             print("Error connecting to device: ", e)
             self.sock = None
@@ -57,16 +68,16 @@ class bluetoothCommunicator():
         sockReadThread = threading.Thread(target=self.readBluetoothMessage)
         #sockReadThread.start()
         return 0
-
+    
     def readBluetoothMessage(self):
         while self.sock is not None:
             try:
                 data = self.sock.recv(4096)
                 print("Received data: ", data)
-                self.sensorDataLock.acquire()
-                self.sensorData.append(data)
-                self.sensorDataExists.set()
-                self.sensorDataLock.release()
+                for byte in data:
+                    match byte:
+                        case b'':                        
+
             except Exception as e:
                 print("Error reading from socket: ", e)
                 self.sock = None

@@ -47,11 +47,8 @@ class App(tk.Tk):
         self.frames = {}
 
         for F in (Home, BluetoothSetup, ControlSchemeChoice, SensorDisplay):
-  
             frame = F(container, self)
-
             self.frames[F] = frame 
-  
             frame.grid(row = 0, column = 0, sticky ="nsew")
   
         self.show_frame(Home)
@@ -99,4 +96,4 @@ class App(tk.Tk):
                     break
 
 if __name__ == "__main__":
-    gui = App()
+    app = App()
