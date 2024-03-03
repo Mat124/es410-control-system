@@ -17,7 +17,8 @@
 // include driver libraries
 #include "driver/gpio.h"
 #include "driver/ledc.h"
-#include "driver/adc.h"
+
+#include "esp_adc/adc_oneshot.h"
 
 #include "mpu6050.h"
 
@@ -35,6 +36,8 @@
 #endif
 #endif
 
+#define TEST 0
+
 #define RIGHT_MOTOR_PIN 25
 #define RIGHT_MOTOR_DIR_PIN GPIO_NUM_26
 #define LEFT_MOTOR_PIN 27
@@ -49,6 +52,7 @@
 #define WEAPON_MOTOR_CHANNEL LEDC_CHANNEL_3
 
 #define BAT_VOLTAGE_CHANNEL ADC1_GPIO39_CHANNEL
+#define BAT_TEMP_CHANNEL ADC1_GPIO36_CHANNEL
 
 #define VOLTAGE 'V'
 #define TEMPERATURE 'T'
@@ -66,6 +70,10 @@ extern char lineBuffer[1024]; // 1024 bytes
 TaskHandle_t xMotorTaskHandle = NULL;
 TaskHandle_t xSensorTaskHandle = NULL;
 
+adc_oneshot_unit_handle_t adc1;
+
+static mpu6050_handle_t mpu6050dev;
+
 extern SemaphoreHandle_t lineBufferMutex;
 
 extern uint16_t rfcomm_channel_id;
@@ -75,10 +83,6 @@ float rightMotorSpeed = 0;
 float leftMotorSpeed = 0;
 float weaponMotorSpeed = 0;
 
-float getVoltage() {
-
-}
-
 // sensor task
 void sensor_task(void *pvParameters){
     float batTemp = 0;
@@ -86,11 +90,13 @@ void sensor_task(void *pvParameters){
     while (1){
         // read sensors
         batVoltage = 12 * (adc1_get_raw(BAT_VOLTAGE_CHANNEL) * (1.8 - 0.1)) / 4095; // reads between 0.1v to 1.8v, voltage divider 1/12
-        batTemp = 0; // TODO: read temperature sensor
-
+        batTemp = 3 * (adc1_get_raw(BAT_TEMP_CHANNEL) * (1.8 - 1)) / 4095;
+        
         // create random sensor data for testing
-        batTemp = (float)(rand() % 100);
-        batVoltage = (float)(rand() % 100);
+        if (TEST) {
+            batTemp = (float)(rand() % 100);
+            batVoltage = (float)(rand() % 100);
+        }
 
         // write to lineBuffer
         xSemaphoreTake(lineBufferMutex, portMAX_DELAY);
@@ -155,13 +161,21 @@ void motor_task(void *pvParameters) {
 
 void pin_setup() {
     // ADC
-    adc_power_acquire();
-    adc1_config_channel_atten(BAT_VOLTAGE_CHANNEL, ADC_ATTEN_DB_6); // 150mV to 1750mV, GPIO39 for battery voltage
-    adc1_config_width(ADC_WIDTH_BIT_12);
-    adc1_config_channel_atten(ADC1_GPIO36_CHANNEL, ADC_ATTEN_DB_6); // 150mV to 1750mV, GPIO36 for battery temperature TODO: check the output voltage range of temp sensor
+    adc_oneshot_unit_init_cfg_t adc1_unit_cfg = {
+        .unit_id = ADC_UNIT_1,
+    };
+    adc_oneshot_new_unit(&adc1_unit_cfg, &adc1);
+    adc_oneshot_chan_cfg_t adc1 = {
+        .bitwidth = ADC_BITWIDTH_12,
+        .atten = ADC_ATTEN_DB_6,
+    }
+    adc_channel_t *
+    adc_oneshot_io_to_channel(36)
+    adc_oneshot_io_to_channel(39)
+    adc_oneshot_config_channel(adc1, )
 
     // init MPU6050
-    mpu6050_handle_t mpu6050 = mpu6050_init();
+    mpu6050dev = mpu6050_init();
 
     // timer configuration
     ledc_timer_config_t ledc_timer = {
