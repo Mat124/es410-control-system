@@ -15,7 +15,14 @@ class status(Enum):
     CONNECTIONERROR = -1
 
 class sensor(Enum):
-    
+    VOLTAGE = b'V'
+    TEMPERATURE = b'T'
+    X_ACCEL = b'X'
+    Y_ACCEL = b'Y'
+    Z_ACCEL = b'Z'
+    X_GYRO = b'x'
+    Y_GYRO = b'y'
+    Z_GYRO = b'z'
 
 class bluetoothCommunicator():
 

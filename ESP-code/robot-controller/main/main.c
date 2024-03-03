@@ -1,43 +1,3 @@
-/*
- * Copyright (C) 2020 BlueKitchen GmbH
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
- *
- * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions and the following disclaimer.
- * 2. Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the
- *    documentation and/or other materials provided with the distribution.
- * 3. Neither the name of the copyright holders nor the names of
- *    contributors may be used to endorse or promote products derived
- *    from this software without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY BLUEKITCHEN GMBH AND CONTRIBUTORS
- * ``AS IS'' AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
- * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL BLUEKITCHEN
- * GMBH OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
- * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
- * BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS
- * OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED
- * AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
- * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF
- * THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
- * SUCH DAMAGE.
- *
- */
-
-/*
- *  main.c
- *
- *  Minimal main application that initializes BTstack, prepares the example and enters BTstack's Run Loop.
- *
- *  If needed, you can create other threads. Please note that BTstack's API is not thread-safe and can only be
- *  called from BTstack timers or in response to its callbacks, e.g. packet handlers.
- */
-
 #include <stddef.h>
 #include <stdio.h>
 
@@ -57,6 +17,9 @@
 // include driver libraries
 #include "driver/gpio.h"
 #include "driver/ledc.h"
+#include "driver/adc.h"
+
+#include "mpu6050.h"
 
 // warn about unsuitable sdkconfig
 #include "sdkconfig.h"
@@ -85,6 +48,17 @@
 #define LEFT_MOTOR_CHANNEL LEDC_CHANNEL_2
 #define WEAPON_MOTOR_CHANNEL LEDC_CHANNEL_3
 
+#define BAT_VOLTAGE_CHANNEL ADC1_GPIO39_CHANNEL
+
+#define VOLTAGE 'V'
+#define TEMPERATURE 'T'
+#define X_ACCEL 'X'
+#define Y_ACCEL 'Y'
+#define Z_ACCEL 'Z'
+#define X_GYRO 'x'
+#define Y_GYRO 'y'
+#define Z_GYRO 'z'
+
 extern int btstack_main(int argc, const char * argv[]);
 
 extern char lineBuffer[1024]; // 1024 bytes
@@ -101,18 +75,26 @@ float rightMotorSpeed = 0;
 float leftMotorSpeed = 0;
 float weaponMotorSpeed = 0;
 
+float getVoltage() {
+
+}
+
 // sensor task
 void sensor_task(void *pvParameters){
     float batTemp = 0;
     float batVoltage = 0;
     while (1){
+        // read sensors
+        batVoltage = 12 * (adc1_get_raw(BAT_VOLTAGE_CHANNEL) * (1.8 - 0.1)) / 4095; // reads between 0.1v to 1.8v, voltage divider 1/12
+        batTemp = 0; // TODO: read temperature sensor
+
         // create random sensor data for testing
         batTemp = (float)(rand() % 100);
         batVoltage = (float)(rand() % 100);
 
         // write to lineBuffer
         xSemaphoreTake(lineBufferMutex, portMAX_DELAY);
-        sprintf((char *)lineBuffer, "batTemp:%f batVoltage:%f", batTemp, batVoltage);
+        sprintf((char *)lineBuffer, "T%f V%f", batTemp, batVoltage); //TODO: include other sensor data
         xSemaphoreGive(lineBufferMutex);
 
         // request bluetooth send
@@ -172,6 +154,15 @@ void motor_task(void *pvParameters) {
 }
 
 void pin_setup() {
+    // ADC
+    adc_power_acquire();
+    adc1_config_channel_atten(BAT_VOLTAGE_CHANNEL, ADC_ATTEN_DB_6); // 150mV to 1750mV, GPIO39 for battery voltage
+    adc1_config_width(ADC_WIDTH_BIT_12);
+    adc1_config_channel_atten(ADC1_GPIO36_CHANNEL, ADC_ATTEN_DB_6); // 150mV to 1750mV, GPIO36 for battery temperature TODO: check the output voltage range of temp sensor
+
+    // init MPU6050
+    mpu6050_handle_t mpu6050 = mpu6050_init();
+
     // timer configuration
     ledc_timer_config_t ledc_timer = {
         .duty_resolution = LEDC_TIMER_10_BIT, // 0-1023
@@ -227,13 +218,9 @@ int app_main(void) {
     // Init mutex
     lineBufferMutex = xSemaphoreCreateMutex();
 
-    // Enable buffered stdout
+    // BT setup
     btstack_stdio_init();
-
-    // Configure BTstack for ESP32 VHCI Controller
     btstack_init();
-
-    // Setup Bluetooth
     btstack_main(0, NULL);
 
     // Setup other pins
@@ -243,7 +230,7 @@ int app_main(void) {
     xTaskCreate(motor_task, "MotorTask", 2048, NULL, 5, &xMotorTaskHandle);
     xTaskCreate(sensor_task, "SensorTask", 2048, NULL, 5, &xSensorTaskHandle);
 
-    // Enter run loop (forever)
+    // Enter run loop
     btstack_run_loop_execute();
 
     return 0;
