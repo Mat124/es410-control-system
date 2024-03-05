@@ -54,7 +54,7 @@
 #define BAT_VOLTAGE_IO_PIN 39
 #define BAT_TEMP_IO_PIN 36
 #define ULTRASONIC_TRIG_IO_PIN GPIO_NUM_34
-#define ULTRASONIC_ECHO_IO_PIN 35
+#define ULTRASONIC_ECHO_IO_PIN GPIO_NUM_35
 
 #define VOLTAGE 'V'
 #define TEMPERATURE 'T'
@@ -88,35 +88,37 @@ float weaponMotorSpeed = 0;
 
 // sensor task
 void sensor_task(void *pvParameters){
-    int batTempReading, batVoltageReading, ultrasonicReading;
+    int batTempReading, batVoltageReading;
     float batTemp = 0;
     float batVoltage = 0;
+    float ultrasonicDistance = 0;
     while (1){
         // read battery sensors
-        adc_oneshot_read(adc1, )
+        adc_oneshot_read(adc1, batVoltageChannel, batVoltageReading);
+        adc_oneshot_read(adc1, batTempChannel, batTempReading);
         batVoltage = 12 * (adc_oneshot_read(BAT_VOLTAGE_CHANNEL) * (1.8 - 0.1)) / 4095; // reads between 0.1v to 1.8v, voltage divider 1/12
         batTemp = 3 * (adc1_get_raw(BAT_TEMP_CHANNEL) * (1.8 - 1)) / 4095;
 
         // read ultrasonic sensor
+        int64_t pulseStart, pulseEnd;
+        pulseStart = esp_timer_get_time();
         gpio_set_level(ULTRASONIC_TRIG_IO_PIN, 1);
         vTaskDelay(0.01 / portTICK_PERIOD_MS); // 10us
         gpio_set_level(ULTRASONIC_TRIG_IO_PIN, 0);
-        int64_t pulse_start, pulse_end;
-        while (adc1_get_raw(ULTRASONIC_ECHO_CHANNEL) == 0) {
-            pulse_start = esp_timer_get_time();
-        }
+        while (gpio_get_level() == 0) {continue;}
+        pulseEnd = esp_timer_get_time();
+        ultrasonicDistance = ((pulseEnd - pulseStart) * 1000000 * 340) / 2; // distance in m        
 
-        
-        
         // create random sensor data for testing
         if (TEST) {
             batTemp = (float)(rand() % 100);
             batVoltage = (float)(rand() % 100);
+            ultrasonicDistance = (float)(rand() % 100);
         }
 
         // write to lineBuffer
         xSemaphoreTake(lineBufferMutex, portMAX_DELAY);
-        sprintf((char *)lineBuffer, "T%f V%f", batTemp, batVoltage); //TODO: include other sensor data
+        sprintf((char *)lineBuffer, "T%f V%f D%f", batTemp, batVoltage, ultrasonicDistance); //TODO: include other sensor data
         xSemaphoreGive(lineBufferMutex);
 
         // request bluetooth send
@@ -191,12 +193,11 @@ void pin_setup() {
     };
     adc_oneshot_io_to_channel(BAT_VOLTAGE_IO_PIN, ADC_UNIT_1, &batVoltageChannel);
     adc_oneshot_io_to_channel(BAT_TEMP_IO_PIN, ADC_UNIT_1, &batTempChannel);
-    adc_oneshot_io_to_channel(ULTRASONIC_ECHO_IO_PIN, ADC_UNIT_1, &ultrasonicEchoChannel);
     adc_oneshot_config_channel(adc1, batVoltageChannel, &adc1ChannelCfg);
     adc_oneshot_config_channel(adc1, batTempChannel, &adc1ChannelCfg);
-    adc_oneshot_config_channel(adc1, ultrasonicEchoChannel, &adc1ChannelCfg2);
 
     gpio_set_direction(ULTRASONIC_TRIG_IO_PIN, GPIO_MODE_OUTPUT);
+    gpio_set_direction(ULTRASONIC_ECHO_IO_PIN, GPIO_MODE_INPUT);
 
     // init MPU6050
     mpu6050dev = mpu6050_init();
