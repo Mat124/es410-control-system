@@ -51,8 +51,10 @@
 #define LEFT_MOTOR_CHANNEL LEDC_CHANNEL_2
 #define WEAPON_MOTOR_CHANNEL LEDC_CHANNEL_3
 
-#define BAT_VOLTAGE_CHANNEL ADC1_GPIO39_CHANNEL
-#define BAT_TEMP_CHANNEL ADC1_GPIO36_CHANNEL
+#define BAT_VOLTAGE_IO_PIN 39
+#define BAT_TEMP_IO_PIN 36
+#define ULTRASONIC_TRIG_IO_PIN GPIO_NUM_34
+#define ULTRASONIC_ECHO_IO_PIN 35
 
 #define VOLTAGE 'V'
 #define TEMPERATURE 'T'
@@ -71,6 +73,7 @@ TaskHandle_t xMotorTaskHandle = NULL;
 TaskHandle_t xSensorTaskHandle = NULL;
 
 adc_oneshot_unit_handle_t adc1;
+adc_channel_t batVoltageChannel, batTempChannel, ultrasonicEchoChannel;
 
 static mpu6050_handle_t mpu6050dev;
 
@@ -85,12 +88,25 @@ float weaponMotorSpeed = 0;
 
 // sensor task
 void sensor_task(void *pvParameters){
+    int batTempReading, batVoltageReading, ultrasonicReading;
     float batTemp = 0;
     float batVoltage = 0;
     while (1){
-        // read sensors
-        batVoltage = 12 * (adc1_get_raw(BAT_VOLTAGE_CHANNEL) * (1.8 - 0.1)) / 4095; // reads between 0.1v to 1.8v, voltage divider 1/12
+        // read battery sensors
+        adc_oneshot_read(adc1, )
+        batVoltage = 12 * (adc_oneshot_read(BAT_VOLTAGE_CHANNEL) * (1.8 - 0.1)) / 4095; // reads between 0.1v to 1.8v, voltage divider 1/12
         batTemp = 3 * (adc1_get_raw(BAT_TEMP_CHANNEL) * (1.8 - 1)) / 4095;
+
+        // read ultrasonic sensor
+        gpio_set_level(ULTRASONIC_TRIG_IO_PIN, 1);
+        vTaskDelay(0.01 / portTICK_PERIOD_MS); // 10us
+        gpio_set_level(ULTRASONIC_TRIG_IO_PIN, 0);
+        int64_t pulse_start, pulse_end;
+        while (adc1_get_raw(ULTRASONIC_ECHO_CHANNEL) == 0) {
+            pulse_start = esp_timer_get_time();
+        }
+
+        
         
         // create random sensor data for testing
         if (TEST) {
@@ -161,18 +177,26 @@ void motor_task(void *pvParameters) {
 
 void pin_setup() {
     // ADC
-    adc_oneshot_unit_init_cfg_t adc1_unit_cfg = {
+    adc_oneshot_unit_init_cfg_t adc1UnitCfg = {
         .unit_id = ADC_UNIT_1,
     };
-    adc_oneshot_new_unit(&adc1_unit_cfg, &adc1);
-    adc_oneshot_chan_cfg_t adc1 = {
+    adc_oneshot_new_unit(&adc1UnitCfg, &adc1);
+    adc_oneshot_chan_cfg_t adc1ChannelCfg = {
         .bitwidth = ADC_BITWIDTH_12,
         .atten = ADC_ATTEN_DB_6,
-    }
-    adc_channel_t *
-    adc_oneshot_io_to_channel(36)
-    adc_oneshot_io_to_channel(39)
-    adc_oneshot_config_channel(adc1, )
+    };
+    adc_oneshot_chan_cfg_t adc1ChannelCfg2 = {
+        .bitwidth = ADC_BITWIDTH_12,
+        .atten = ADC_ATTEN_DB_0,
+    };
+    adc_oneshot_io_to_channel(BAT_VOLTAGE_IO_PIN, ADC_UNIT_1, &batVoltageChannel);
+    adc_oneshot_io_to_channel(BAT_TEMP_IO_PIN, ADC_UNIT_1, &batTempChannel);
+    adc_oneshot_io_to_channel(ULTRASONIC_ECHO_IO_PIN, ADC_UNIT_1, &ultrasonicEchoChannel);
+    adc_oneshot_config_channel(adc1, batVoltageChannel, &adc1ChannelCfg);
+    adc_oneshot_config_channel(adc1, batTempChannel, &adc1ChannelCfg);
+    adc_oneshot_config_channel(adc1, ultrasonicEchoChannel, &adc1ChannelCfg2);
+
+    gpio_set_direction(ULTRASONIC_TRIG_IO_PIN, GPIO_MODE_OUTPUT);
 
     // init MPU6050
     mpu6050dev = mpu6050_init();
