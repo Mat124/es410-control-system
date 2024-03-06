@@ -1,5 +1,6 @@
 import threading
 import tkinter as tk
+import time
 
 from frames import *
 from bt_client import bluetoothCommunicator
@@ -35,7 +36,11 @@ class App(tk.Tk):
             "led": 0.0
         }
 
+        self.sensorData = self.bt_comm.sensorData
+
         self.sendMotorOutputs = True
+
+        self.lastSent = time.time()
         
         # setup GUI
         tk.Tk.__init__(self)
@@ -66,6 +71,8 @@ class App(tk.Tk):
         Show frame
         '''
         frame = self.frames[cont]
+        if cont != SensorDisplay:
+            self.frames[SensorDisplay].updateSensorDataEvent.clear()
         frame.tkraise()
 
 
@@ -90,9 +97,10 @@ class App(tk.Tk):
                 self.motorOut["led"] = self.gamepad.motorOutputs["led"] # delete this after test
                 
             for key in self.motorOut:
-                if self.motorOut[key] != oldMotorOut[key]:
+                if self.motorOut[key] != oldMotorOut[key] and time.time() - self.lastSent > 0.01:
                     self.bt_comm.sendMotorControl(self.motorOut)
                     print("Sent motor control: ", self.motorOut)
+                    self.lastSent = time.time()
                     break
 
 if __name__ == "__main__":

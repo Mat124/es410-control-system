@@ -155,7 +155,7 @@ static void packet_handler (uint8_t packet_type, uint16_t channel, uint8_t *pack
                 case RFCOMM_EVENT_CAN_SEND_NOW:
                     xSemaphoreTake(lineBufferMutex, portMAX_DELAY);
                     rfcomm_send(rfcomm_channel_id, (uint8_t*) lineBuffer, (uint16_t) strlen(lineBuffer));
-                    xSemaphoreGive(lineBufferMutex); 
+                    xSemaphoreGive(lineBufferMutex);
                     break;
              
                 case RFCOMM_EVENT_CHANNEL_CLOSED:
@@ -236,7 +236,6 @@ int btstack_main(int argc, const char * argv[]){
     gap_ssp_set_io_capability(SSP_IO_CAPABILITY_DISPLAY_YES_NO);
     gap_set_local_name("Robot 00:00:00:00:00:00");
 
-    // turn on!
     hci_power_control(HCI_POWER_ON);
     
     return 0;

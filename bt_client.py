@@ -15,20 +15,33 @@ class status(Enum):
     CONNECTIONERROR = -1
 
 class sensor(Enum):
-    VOLTAGE = b'V'
-    TEMPERATURE = b'T'
-    X_ACCEL = b'X'
-    Y_ACCEL = b'Y'
-    Z_ACCEL = b'Z'
-    X_GYRO = b'x'
-    Y_GYRO = b'y'
-    Z_GYRO = b'z'
+    VOLTAGE = 'V'.encode()[0]
+    TEMPERATURE = 'T'.encode()[0]
+    DISTANCE = 'D'.encode()[0]
+    X_ACCEL = 'X'.encode()[0]
+    Y_ACCEL = 'Y'.encode()[0]
+    Z_ACCEL = 'Z'.encode()[0]
+    X_GYRO = 'x'.encode()[0]
+    Y_GYRO = 'y'.encode()[0]
+    Z_GYRO = 'z'.encode()[0]
 
 class bluetoothCommunicator():
 
     def __init__(self, parent = None):
         self.sock = None
         self.connectionStatus = status.UNCONNECTED
+        self.sensorData = {
+            "Battery Temperature": -1.0,
+            "Battery Voltage": -1.0,
+            "Battery Percentage": -1.0,
+            "Distance": -1.0,
+            "X Acceleration": -1.0,
+            "Y Acceleration": -1.0,
+            "Z Acceleration": -1.0,
+            "X Gyroscope": -1.0,
+            "Y Gyroscope": -1.0,
+            "Z Gyroscope": -1.0
+        }
         print("Starting bluetooth test")
         app = QCoreApplication(sys.argv)
 
@@ -73,7 +86,7 @@ class bluetoothCommunicator():
             self.sock = None
             return 1
         sockReadThread = threading.Thread(target=self.readBluetoothMessage)
-        #sockReadThread.start()
+        sockReadThread.start()
         return 0
     
     def readBluetoothMessage(self):
@@ -81,10 +94,30 @@ class bluetoothCommunicator():
             try:
                 data = self.sock.recv(4096)
                 print("Received data: ", data)
-                for byte in data:
-                    match byte:
-                        case b'':                        
-
+                sections = data.split(b' ')
+                for section in sections:
+                    match section[0]:
+                        case sensor.VOLTAGE.value:
+                            self.sensorData["Battery Voltage"] = float(section[1:])
+                            # TODO: map voltage to percentage
+                        case sensor.TEMPERATURE.value:
+                            self.sensorData["Battery Temperature"] = float(section[1:])
+                        case sensor.X_ACCEL.value:
+                            self.sensorData["X Acceleration"] = float(section[1:])
+                        case sensor.Y_ACCEL.value:
+                            self.sensorData["Y Acceleration"] = float(section[1:])
+                        case sensor.Z_ACCEL.value:
+                            self.sensorData["Z Acceleration"] = float(section[1:])
+                        case sensor.X_GYRO.value:
+                            self.sensorData["X Gyroscope"] = float(section[1:])
+                        case sensor.Y_GYRO.value:
+                            self.sensorData["Y Gyroscope"] = float(section[1:])
+                        case sensor.Z_GYRO.value:
+                            self.sensorData["Z Gyroscope"] = float(section[1:])
+                        case sensor.DISTANCE.value:
+                            self.sensorData["Distance"] = float(section[1:])
+                        case _:
+                            print("Unknown sensor data starter: ", section[0])
             except Exception as e:
                 print("Error reading from socket: ", e)
                 self.sock = None
