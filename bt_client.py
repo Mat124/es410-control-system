@@ -8,12 +8,14 @@ from PyQt6.QtCore import QCoreApplication
 from PyQt6 import QtBluetooth
 from enum import Enum
 
+# enum for connection status, more readable than using numbers
 class status(Enum):
     UNCONNECTED = 0
     CONNECTED = 1
     CONNECTING = 2
     CONNECTIONERROR = -1
 
+# enum for sensor data, more readable than characters
 class sensor(Enum):
     VOLTAGE = 'V'.encode()[0]
     TEMPERATURE = 'T'.encode()[0]
@@ -26,6 +28,10 @@ class sensor(Enum):
     Z_GYRO = 'z'.encode()[0]
 
 class bluetoothCommunicator():
+    '''
+    Class for handling bluetooth communication with the robot
+    Uses the PyQT6 library for identifying the robot, and the socket library for communication
+    '''
 
     def __init__(self, parent = None):
         self.sock = None
@@ -63,6 +69,7 @@ class bluetoothCommunicator():
         print("Error: ", error)
 
     def deviceDiscovered(self, device):
+        # on device discovery, check if the device is the robot and attempt to connect
         print("Device discovered: ", device.name())
         if device.name().startswith("Robot"):
             print("Found robot device")
@@ -122,13 +129,14 @@ class bluetoothCommunicator():
                 self.sock = None
                 return
             
-    def sendMotorControl(self, motorOutputs): # dict: left, right, weapon
-        if self.sock is not None:
+    def sendMotorControl(self, motorOutputs): # motorOutputs: dictionary {led, left, right, weapon}
+        if self.sock is not None: # only send if connected
             try:
                 ledData = "Z" + str(motorOutputs["led"])
                 leftData = "L" + str(motorOutputs["left"])
                 rightData = "R" + str(motorOutputs["right"])
                 weaponData = "W" + str(motorOutputs["weapon"])
+                # concatenate the data into a single string and send
                 sendMsg = ledData + " " + leftData + " " + rightData + " " + weaponData + "\n"
                 self.sock.send(sendMsg.encode())
             except Exception as e:
@@ -136,7 +144,8 @@ class bluetoothCommunicator():
                 self.sock = None
                 return
             
-    def sendSerialMsg(self, msg):
+    def sendSerialMsg(self, msg): 
+        # send a custom serial message to the robot for testing purposes
         if self.sock is not None:
             try:
                 self.sock.send(msg.encode())

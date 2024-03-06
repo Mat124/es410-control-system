@@ -10,14 +10,8 @@ class App(tk.Tk):
     '''
     App class for the Fighting Robot Controller
 
-    Need to include:
-    - Control scheme choice
-        - maybe a controller visualisation to show which buttons do what
-    - Sensor display
-        - Battery levels, current temperatures, motor outputs, etc.
-        - Warnings for low battery, high temps, loss of sensor signals, etc.
-    - Bluetooth connection setup to the robot
-    
+    Initialises the gamepad parser, bluetooth connection and GUI.
+    Starts a thread to send motor outputs to the robot.
     '''
     
     def __init__(self):

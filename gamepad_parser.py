@@ -2,10 +2,9 @@ import inputs
 import threading
 
 class GamepadModel:
+    # holds the current state of the gamepad
 
-    # need to think about joysticks - don't know if linear or not
-
-    # just implementing joysticks, buttons and triggers for now
+    # joysticks, buttons and triggers
     values = {
     "ABS_X": 0,
     "ABS_Y": 0,
@@ -40,6 +39,7 @@ class GamepadModel:
 
 class GamepadParser:
 
+    # control schemes, each with a mapping of gamepad inputs to motor outputs
     control_schemes = [ {
         "turn": "ABS_X",
         "forward": "ABS_RZ",
@@ -75,10 +75,12 @@ class GamepadParser:
         auto_movement = self.control_schemes[self.control_scheme]["toggle_auto_movement"]
         led = self.control_schemes[self.control_scheme]["led"]
 
+        # toggle autonomous weapon
         if self.gamepadModel.values[auto_weapon] and not self.autonomousWeaponHeld:
             self.autonomousWeapon = not self.autonomousWeapon
             self.autonomousWeaponHeld = True
         
+        # toggle autonomous movement
         if self.gamepadModel.values[auto_movement] and not self.autonomousMovementHeld:
             self.autonomousMovement = not self.autonomousMovement
             self.autonomousMovementHeld = True
@@ -88,31 +90,35 @@ class GamepadParser:
         if not self.gamepadModel.values[auto_movement]:
             self.autonomousMovementHeld = False
 
+        # set outputs based on gamepad inputs
         self.motorOutputs["left"] = self.gamepadModel.values[turn] + self.gamepadModel.values[forward] - self.gamepadModel.values[reverse]
         self.motorOutputs["right"] = -self.gamepadModel.values[turn] + self.gamepadModel.values[forward] - self.gamepadModel.values[reverse]
         self.motorOutputs["weapon"] = self.gamepadModel.values[weapon]
         self.motorOutputs["led"] = abs(self.gamepadModel.values[led])
 
+        # cap at [-1, 1] in the case of controller error
         for output in self.motorOutputs:
             self.motorOutputs[output] = max(min(self.motorOutputs[output], 1), -1)
 
     def read_gamepad(self): # read gamepad inputs and update model
         while True:
-            events = self.gamepad.read()
+            events = self.gamepad.read() # block until new input
             self.gamepadModel.updateModel(events)
             self.updateOutputs()
 
     def __init__(self, control_scheme = 0):
         try:
+            # only attempt connection if a gamepad is connected
             if len(inputs.devices.gamepads) > 0:
                 self.gamepad = inputs.devices.gamepads[0]
         except Exception as e:
-            # raise("Issue connecting to gamepad.") # TODO: implement error handling - want to send this to GUI
             raise e
-
+        
+        # create gamepad model and set control scheme
         self.gamepadModel = GamepadModel()
         self.updateControlScheme(control_scheme)
 
+        # start gamepad reader thread
         t = threading.Thread(target=self.read_gamepad)
         t.daemon = True # thread stops when main thread stops
         t.start()

@@ -6,6 +6,7 @@ from tkinter import ttk
 class BaseFrame(tk.Frame):
     '''
     Custom frame class for GUI
+    This is a virtual class, and should not be instantiated
     '''
     def __init__(self, parent, controller):
         tk.Frame.__init__(self, parent)
@@ -38,8 +39,9 @@ class BluetoothSetup(BaseFrame):
         BaseFrame.__init__(self, parent, controller)
 
         label = ttk.Label(self, text ="Bluetooth Setup", font = ("Verdana", 35))
+        label.grid(row = 0, column = 4)
 
-        self.controllerRef = controller
+        self.controllerRef = controller # save reference to controller for use in other methods
 
         self.robotOptions = [
             "N/A",
@@ -49,21 +51,20 @@ class BluetoothSetup(BaseFrame):
         ]
         self.currSelected = tk.StringVar()
         self.currSelected.set(self.robotOptions[0])
+        # create dropdown box for selecting robot
         self.robotDropdown = ttk.OptionMenu(self, self.currSelected, *self.robotOptions)
         self.robotDropdown.grid(row=4, column=5)
 
+        # create a thread to connect to the robot, preventing the GUI from freezing
         self.connectionThread = threading.Thread(target=self.tryConnect)
         self.bluetoothConnectButton = ttk.Button(self, text ="Connect to Robot",
                                             command = self.connectionThread.run)
         self.bluetoothConnectButton.grid(row = 5, column = 5)
 
+        # label to see the status of the bluetooth connection
         self.btStatusLabelText = tk.StringVar()
         self.btStatusLabel = ttk.Label(self, textvariable=self.btStatusLabelText)
         self.btStatusLabel.grid(row=6, column=5)
-        
-        # putting the grid in its place by using
-        # grid
-        label.grid(row = 0, column = 4)
 
     def disconnect(self):
         pass
@@ -85,9 +86,6 @@ class ControlSchemeChoice(BaseFrame):
         BaseFrame.__init__(self, parent, controller)
 
         label = ttk.Label(self, text ="Control Scheme Choice", font = ("Verdana", 35))
-        
-        # putting the grid in its place by using
-        # grid
         label.grid(row = 0, column = 4) 
 
 class SensorDisplay(BaseFrame):
@@ -116,12 +114,14 @@ class SensorDisplay(BaseFrame):
             i += 1
 
     def updateSensorData(self):
+        # thread runs this code and updates sensor data every 100ms until the event is cleared
         while self.updateSensorDataEvent.is_set():
             for key, value in self.displaySensorData.items():
                 self.labels[key].set(f"{value}")
             time.sleep(0.1)
     
     def tkraise(self) -> None:
+        # start the sensor data update thread when the frame is raised (shown)
         self.updateSensorDataEvent.set()
         self.updateSensorDataThread = threading.Thread(target=self.updateSensorData)
         self.updateSensorDataThread.start()
@@ -135,7 +135,4 @@ class Home(BaseFrame):
         BaseFrame.__init__(self, parent, controller)
 
         label = ttk.Label(self, text ="Home", font = ("Verdana", 35))
-        
-        # putting the grid in its place by using
-        # grid
         label.grid(row = 0, column = 4) 
