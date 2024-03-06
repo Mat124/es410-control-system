@@ -100,12 +100,11 @@ class bluetoothCommunicator():
             try:
                 data = self.sock.recv(4096)
                 print("Received data: ", data)
-                sections = data.split(b' ')
-                for section in sections:
+                sections = data.split(b' ') # split data into sections by space
+                for section in sections: # for each section, check the first character and add to sensor data
                     match section[0]:
                         case sensor.VOLTAGE.value:
                             self.sensorData["Battery Voltage"] = float(section[1:])
-                            # TODO: map voltage to percentage
                         case sensor.TEMPERATURE.value:
                             self.sensorData["Battery Temperature"] = float(section[1:])
                         case sensor.X_ACCEL.value:
