@@ -1,6 +1,7 @@
 import time
 import threading
 
+from enum import Enum
 from bt_client import bluetoothCommunicator
         
 def sensorLogger(BT):
@@ -13,7 +14,19 @@ def sensorLogger(BT):
         BT.sensorDataLock.release()
         time.sleep(0.1)
 
+class sensor(Enum):
+    VOLTAGE = 'V'.encode()
+    TEMPERATURE = 'T'.encode()
+    X_ACCEL = 'X'.encode()
+    Y_ACCEL = 'Y'.encode()
+    Z_ACCEL = 'Z'.encode()
+    X_GYRO = 'x'.encode()
+    Y_GYRO = 'y'.encode()
+    Z_GYRO = 'z'.encode()
+
 if __name__ == "__main__":
+    print(sensor.VOLTAGE.value[0])
+
     BT = bluetoothCommunicator()
 
     BT.connect()

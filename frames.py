@@ -1,5 +1,6 @@
 import tkinter as tk
 import threading
+import time
 from tkinter import ttk
 
 class BaseFrame(tk.Frame):
@@ -64,6 +65,9 @@ class BluetoothSetup(BaseFrame):
         # grid
         label.grid(row = 0, column = 4)
 
+    def disconnect(self):
+        pass
+
     def tryConnect(self):
         print(self.currSelected.get())
         if self.currSelected.get() != "N/A":
@@ -96,21 +100,32 @@ class SensorDisplay(BaseFrame):
         label = ttk.Label(self, text ="Sensor Display", font = ("Verdana", 35))
         label.grid(row = 0, column = 4)
 
-        self.displaySensorData = {
-            "Battery Temperature": -1.0,
-            "Battery Voltage": -1.0,
-            "Battery Percentage": -1.0,
-            "Current Velocity": -1.0,
-            "Current Acceleration": -1.0
-        }
-        
+        self.displaySensorData = controller.sensorData
+
+        self.updateSensorDataEvent = threading.Event()
+        self.updateSensorDataEvent.clear()
+
         i = 5
+        self.labels = {}
         for key, value in self.displaySensorData.items():
             label = ttk.Label(self, text = f"{key}:")
             label.grid(row = i, column = 4)
-            label = ttk.Label(self, text = f"{value}")
+            self.labels[key] = tk.StringVar()
+            label = ttk.Label(self, textvariable = self.labels[key])
             label.grid(row = i, column = 5)
             i += 1
+
+    def updateSensorData(self):
+        while self.updateSensorDataEvent.is_set():
+            for key, value in self.displaySensorData.items():
+                self.labels[key].set(f"{value}")
+            time.sleep(0.1)
+    
+    def tkraise(self) -> None:
+        self.updateSensorDataEvent.set()
+        self.updateSensorDataThread = threading.Thread(target=self.updateSensorData)
+        self.updateSensorDataThread.start()
+        return super().tkraise()
 
 class Home(BaseFrame):
     '''
