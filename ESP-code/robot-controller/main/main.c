@@ -42,6 +42,7 @@
 
 #define TEST 0
 
+// defining the pin numbers for future use
 #define RIGHT_MOTOR_PIN 25
 #define RIGHT_MOTOR_DIR_PIN GPIO_NUM_26
 #define LEFT_MOTOR_PIN 27
@@ -74,10 +75,13 @@
 #define I2C_MASTER_NUM I2C_NUM_0
 #define I2C_MASTER_FREQ_HZ 100000
 
+// declaring external functions and variables
 extern int btstack_main(int argc, const char * argv[]);
-
 extern char lineBuffer[1024]; // 1024 bytes
+extern SemaphoreHandle_t lineBufferMutex;
+extern uint16_t rfcomm_channel_id;
 
+// global variables
 TaskHandle_t xMotorTaskHandle = NULL;
 TaskHandle_t xSensorTaskHandle = NULL;
 
@@ -86,16 +90,15 @@ adc_channel_t batVoltageChannel, batTempChannel, ultrasonicEchoChannel;
 
 static mpu6050_handle_t mpu6050dev;
 
-extern SemaphoreHandle_t lineBufferMutex;
-
-extern uint16_t rfcomm_channel_id;
-
 float ledBrightness = 0;
 float rightMotorSpeed = 0;
 float leftMotorSpeed = 0;
 float weaponMotorSpeed = 0;
 
-// sensor task
+// sensor_task
+// This task reads sensor data and writes to lineBuffer every 20ms or so, and
+// requests a bluetooth send. Battery overheating and low voltage is also checked 
+// here, and currently stops the motors if either is detected.
 void sensor_task(void *pvParameters){
     int batTempReading, batVoltageReading;
     float batTemp = 0;
@@ -108,12 +111,12 @@ void sensor_task(void *pvParameters){
         // read battery sensors
         adc_oneshot_read(adc1, batVoltageChannel, &batVoltageReading);
         adc_oneshot_read(adc1, batTempChannel, &batTempReading);
-        batVoltage = 7.666666666 * (batVoltageReading * 2.2) / 4095; // reads between 0.1v to 1.8v, voltage divider 1/11.5
-        batTemp = 3.3 * ((float)batTempReading / 4095.0) * 100.0; // in kelvin
-        // printf("direct readings: %d, %d\n", batVoltageReading, batTempReading);
-        // printf("read battery sensors: %f, %f\n", batVoltage, batTemp);
+        // reads up to 2.2v, voltage divider gives 1.5/11.5 of the battery voltage
+        batVoltage = 7.666666666 * (batVoltageReading * 2.2) / 4095; 
+        // reads up to 3.3v, 10mV per degree kelvin and no voltage divider
+        batTemp = 3.3 * ((float)batTempReading / 4095.0) * 100.0;
 
-        // battery overheat or low voltage, stop motors
+        // if battery overheat (>63c) or low voltage, stop motors
         if (batTemp >= 330 || batVoltage < 11) {
             rightMotorSpeed = 0;
             leftMotorSpeed = 0;
@@ -121,23 +124,21 @@ void sensor_task(void *pvParameters){
         }
 
         // read ultrasonic sensor
+        // time between sending and receiving the pulse is proportional to the distance
         int64_t pulseStart, pulseEnd = 0;
         pulseStart = esp_timer_get_time();
         gpio_set_level(ULTRASONIC_TRIG_IO_PIN, 1);
-        vTaskDelay(20 / portTICK_PERIOD_MS); // 20ms
+        vTaskDelay(20 / portTICK_PERIOD_MS); // 20ms delay for the pulse to be sent
         gpio_set_level(ULTRASONIC_TRIG_IO_PIN, 0);
+        // wait for the pulse to be received, or timeout after 100ms
         while (gpio_get_level(ULTRASONIC_ECHO_IO_PIN) == 0 && pulseEnd - pulseStart < 100000) {
             pulseEnd = esp_timer_get_time();
         }
         ultrasonicDistance = ((pulseEnd - pulseStart) * 1000000 * 340) / 2; // distance in m
-        // printf("read ultrasonic sensor: %f\n", ultrasonicDistance);
 
-        // read MPU6050
+        // read MPU6050 data into acceValues and gyroValues
         mpu6050_get_acce(mpu6050dev, &acceValues);
         mpu6050_get_gyro(mpu6050dev, &gyroValues);
-        // printf("read MPU6050: %f, %f, %f, %f, %f, %f\n", acceValues.acce_x, acceValues.acce_y, acceValues.acce_z, gyroValues.gyro_x, gyroValues.gyro_y, gyroValues.gyro_z);
-
-        // if autonomous weapon mode, check ultrasonic distance < 10cm and activate weapon motor (?)
 
         // create random sensor data for testing
         if (TEST) {
@@ -147,12 +148,13 @@ void sensor_task(void *pvParameters){
         }
 
         // write to lineBuffer
+        // take mutex lock for threading safety - prevents lineBuffer from being written to by multiple tasks at once
         xSemaphoreTake(lineBufferMutex, portMAX_DELAY);
         sprintf((char *)lineBuffer, "T%f V%f D%f X%f Y%f Z%f x%f y%f z%f", 
                                 batTemp, batVoltage, 
                                 ultrasonicDistance, 
                                 acceValues.acce_x, acceValues.acce_y, acceValues.acce_z, 
-                                gyroValues.gyro_x, gyroValues.gyro_y, gyroValues.gyro_z); //TODO: include other sensor data
+                                gyroValues.gyro_x, gyroValues.gyro_y, gyroValues.gyro_z);
         xSemaphoreGive(lineBufferMutex);
 
         // request bluetooth send
@@ -165,12 +167,12 @@ void sensor_task(void *pvParameters){
 // motor task
 void motor_task(void *pvParameters) {
     while (1){
-        // update motor outputs (currently only LED)
-        // LED
+        // on-board LED
         ledc_set_duty(LEDC_HIGH_SPEED_MODE, LED_CHANNEL, (int)(1024*ledBrightness));
         ledc_update_duty(LEDC_HIGH_SPEED_MODE, LED_CHANNEL);
 
         // RIGHT MOTOR
+        // if speed is negative, set direction pin to 0 so motor spins in reverse
         if (rightMotorSpeed < 0.0) {
             gpio_set_level(RIGHT_MOTOR_DIR_PIN, 0);
         }
@@ -181,6 +183,7 @@ void motor_task(void *pvParameters) {
         ledc_update_duty(LEDC_HIGH_SPEED_MODE, RIGHT_MOTOR_CHANNEL);
 
         // LEFT MOTOR
+        // if speed is negative, set direction pin to 0 so motor spins in reverse
         if (leftMotorSpeed < 0.0) {
             gpio_set_level(LEFT_MOTOR_DIR_PIN, 0);
         }
@@ -191,6 +194,7 @@ void motor_task(void *pvParameters) {
         ledc_update_duty(LEDC_HIGH_SPEED_MODE, LEFT_MOTOR_CHANNEL);
 
         // WEAPON MOTOR
+        // if speed is negative, set direction pin to 0 so motor spins in reverse
         if (weaponMotorSpeed < 0.0) {
             gpio_set_level(WEAPON_MOTOR_DIR_PIN, 0);
         }
@@ -203,11 +207,13 @@ void motor_task(void *pvParameters) {
         // log motor outputs
         printf("LED: %f, RIGHT: %f, LEFT: %f, WEAPON: %f\n", ledBrightness, rightMotorSpeed, leftMotorSpeed, weaponMotorSpeed);
 
-        // suspend task (activate on new data)
+        // suspend task (activated on new data), allows other tasks to run
         vTaskSuspend(NULL);
     }
 }
 
+// i2c_bus_init
+// This function initializes the i2c bus for the MPU6050 sensor
 void i2c_bus_init(void) {
     i2c_config_t conf;
 
@@ -223,12 +229,16 @@ void i2c_bus_init(void) {
     i2c_driver_install(I2C_MASTER_NUM, conf.mode, 0, 0, 0);
 }
 
+// setup
+// This function initializes the ADC, GPIO, I2C, and LEDC drivers, and sets up the MPU6050 sensor
 void setup() {
     // ADC
     adc_oneshot_unit_init_cfg_t adc1UnitCfg = {
         .unit_id = ADC_UNIT_1,
     };
     adc_oneshot_new_unit(&adc1UnitCfg, &adc1);
+    // attenuation of 6dB for battery voltage, 12dB for battery temperature
+    // sets the voltage ranges to 0-2.2v and 0-3.3v respectively
     adc_oneshot_chan_cfg_t adc1ChannelCfg = {
         .bitwidth = ADC_BITWIDTH_12,
         .atten = ADC_ATTEN_DB_6,
@@ -239,13 +249,16 @@ void setup() {
     };
     printf("ADC initialized\n");
     adc_unit_t adcUnit;
+    // convert the pins to ADC channels, required to read the data
     adc_oneshot_io_to_channel(BAT_TEMP_IO_PIN, &adcUnit, &batTempChannel);
     adc_oneshot_io_to_channel(BAT_VOLTAGE_IO_PIN, &adcUnit, &batVoltageChannel);
     printf("Converted to channel\n");
+    // configure the channels to read data
     adc_oneshot_config_channel(adc1, batVoltageChannel, &adc1ChannelCfg);
     adc_oneshot_config_channel(adc1, batTempChannel, &adc1ChannelCfg2);
     printf("Setup channel\n");
 
+    // GPIO setup for ultrasonic sensor
     gpio_set_direction(ULTRASONIC_TRIG_IO_PIN, GPIO_MODE_OUTPUT);
     gpio_set_direction(ULTRASONIC_ECHO_IO_PIN, GPIO_MODE_INPUT);
     printf("GPIO set directions\n");
@@ -253,14 +266,17 @@ void setup() {
     // init MPU6050
     i2c_bus_init();
     printf("Setup i2c bus\n");
+    // create and configure the MPU6050 sensor
+    // uses the new i2c bus we made
     mpu6050dev = mpu6050_create(I2C_MASTER_NUM, MPU6050_I2C_ADDRESS);
+    // configure the sensor to use 8g for accelerometer and 1000dps for gyroscope
     mpu6050_config(mpu6050dev, ACCE_FS_8G, GYRO_FS_1000DPS);
     mpu6050_wake_up(mpu6050dev);
     printf("MPU6050 initialised\n");
 
-    // timer configuration
+    // timer configuration, common for all PWM signals
     ledc_timer_config_t ledc_timer = {
-        .duty_resolution = LEDC_TIMER_10_BIT, // 0-1023
+        .duty_resolution = LEDC_TIMER_10_BIT, // 0-1023 range
         .freq_hz = 20000, // 20 kHz
         .speed_mode = LEDC_HIGH_SPEED_MODE,
         .timer_num = LEDC_TIMER_0
@@ -310,7 +326,7 @@ void setup() {
 }
 
 int app_main(void) {
-    // Init mutex
+    // Create mutex for lineBuffer
     lineBufferMutex = xSemaphoreCreateMutex();
 
     // BT setup
