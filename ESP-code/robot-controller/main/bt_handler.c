@@ -34,20 +34,6 @@ extern float rightMotorSpeed;
 extern float leftMotorSpeed;
 extern float weaponMotorSpeed;
 
-/* @section SPP Service Setup 
- *s
- * @text To provide an SPP service, the L2CAP, RFCOMM, and SDP protocol layers 
- * are required. After setting up an RFCOMM service with channel number
- * RFCOMM_SERVER_CHANNEL, an SDP record is created and registered with the SDP server.
- * Example code for SPP service setup is
- * provided in Listing SPPSetup. The SDP record created by function
- * spp_create_sdp_record consists of a basic SPP definition that uses the provided
- * RFCOMM channel ID and service name. For more details, please have a look at it
- * in \path{src/sdp_util.c}. 
- * The SDP record is created on the fly in RAM and is deterministic.
- * To preserve valuable RAM, the result could be stored as constant data inside the ROM.   
- */
-
 static void spp_service_setup(void){
 
     // register for HCI events
@@ -72,46 +58,7 @@ static void spp_service_setup(void){
     sdp_register_service(spp_service_buffer);
 }
 
-/* @section Bluetooth Logic 
- * @text The Bluetooth logic is implemented within the 
- * packet handler, see Listing SppServerPacketHandler. In this example, 
- * the following events are passed sequentially: 
- * - BTSTACK_EVENT_STATE,
- * - HCI_EVENT_PIN_CODE_REQUEST (Standard pairing) or 
- * - HCI_EVENT_USER_CONFIRMATION_REQUEST (Secure Simple Pairing),
- * - RFCOMM_EVENT_INCOMING_CONNECTION,
- * - RFCOMM_EVENT_CHANNEL_OPENED, 
-* - RFCOMM_EVETN_CAN_SEND_NOW, and
- * - RFCOMM_EVENT_CHANNEL_CLOSED
- */
 
-/* @text Upon receiving HCI_EVENT_PIN_CODE_REQUEST event, we need to handle
- * authentication. Here, we use a fixed PIN code "0000".
- *
- * When HCI_EVENT_USER_CONFIRMATION_REQUEST is received, the user will be 
- * asked to accept the pairing request. If the IO capability is set to 
- * SSP_IO_CAPABILITY_DISPLAY_YES_NO, the request will be automatically accepted.
- *
- * The RFCOMM_EVENT_INCOMING_CONNECTION event indicates an incoming connection.
- * Here, the connection is accepted. More logic is need, if you want to handle connections
- * from multiple clients. The incoming RFCOMM connection event contains the RFCOMM
- * channel number used during the SPP setup phase and the newly assigned RFCOMM
- * channel ID that is used by all BTstack commands and events.
- *
- * If RFCOMM_EVENT_CHANNEL_OPENED event returns status greater then 0,
- * then the channel establishment has failed (rare case, e.g., client crashes).
- * On successful connection, the RFCOMM channel ID and MTU for this
- * channel are made available to the heartbeat counter. After opening the RFCOMM channel, 
- * the communication between client and the application
- * takes place. In this example, the timer handler increases the real counter every
- * second. 
- *
- * RFCOMM_EVENT_CAN_SEND_NOW indicates that it's possible to send an RFCOMM packet
- * on the rfcomm_cid that is include
-
- */ 
-
-/* LISTING_START(SppServerPacketHandler): SPP Server - Heartbeat Counter over RFCOMM */
 static void packet_handler (uint8_t packet_type, uint16_t channel, uint8_t *packet, uint16_t size){
     UNUSED(channel);
 

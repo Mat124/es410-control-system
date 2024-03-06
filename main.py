@@ -99,7 +99,6 @@ class App(tk.Tk):
             for key in self.motorOut:
                 if self.motorOut[key] != oldMotorOut[key] and time.time() - self.lastSent > 0.01:
                     self.bt_comm.sendMotorControl(self.motorOut)
-                    print("Sent motor control: ", self.motorOut)
                     self.lastSent = time.time()
                     break
 

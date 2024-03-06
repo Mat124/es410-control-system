@@ -42,7 +42,6 @@ class bluetoothCommunicator():
             "Y Gyroscope": -1.0,
             "Z Gyroscope": -1.0
         }
-        print("Starting bluetooth test")
         app = QCoreApplication(sys.argv)
 
     def connect(self, char):
