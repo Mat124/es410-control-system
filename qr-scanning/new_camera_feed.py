@@ -1,7 +1,7 @@
-# Code is found here: https://github.com/TemugeB/QR_code_orientation_OpenCV/blob/main/run_qr.py
+# This code is taken inspiration from: https://github.com/TemugeB/QR_code_orientation_OpenCV/tree/main
 import cv2 as cv
 import numpy as np
-import sys
+from pyzbar.pyzbar import decode
 
 # Obtain the camera properties
 def read_camera_parameters(filepath = 'Calibration/cam_properties.dat'):
@@ -47,17 +47,29 @@ def get_qr_coords(cmtx, dist, points):
     #return empty arrays if rotation and translation values not found
     else: return [], [], []
 
-
+# Function to display the image with orientation axes
 def show_axes(cmtx, dist, source):
+    robotName = ''
+    # Define fonts and sizes for text on the display
+    font = cv.FONT_HERSHEY_SIMPLEX # Defining font type
+    fontScale = 1.1 # Defining font size
+    fontColour = (255,255,255) # Defining text colour
+    fontThickness = 2 # Defining thickness of text
+
+    # Create a videocapure object using the 'source' defined camera
     cap = cv.VideoCapture(source)
 
+    # Initialise the qr code detector object
     qr = cv.QRCodeDetector()
 
     while True:
-        ret, frame = cap.read()
-        if ret == False: break
 
-        retQr, points = qr.detect(frame)
+        ret, frame = cap.read() # Obtain the frame information 
+        if ret == False: 
+            break
+
+        capDecoded = decode(frame) # Decode the frame using pyzbar
+        retQr, points = qr.detect(frame) # detect the qr code in the frame
 
         if retQr:
             axisPoints, rvec, tvec = get_qr_coords(cmtx, dist, points)
@@ -82,7 +94,12 @@ def show_axes(cmtx, dist, source):
 
                     cv.line(frame, origin, p, c, 5)
 
-        cv.imshow('frame', frame)
+        # Obtain the text assigned to the QR code
+        for barcode in capDecoded:
+            robotName = barcode.data.decode('utf-8')
+
+        txtFrame = cv.putText(frame, robotName, (0,30), font, fontScale, fontColour, fontThickness) # Make new frame with the text of the robot 
+        cv.imshow('', txtFrame) # display the frame with the name of the robot in the top left corner of the frame
 
         k = cv.waitKey(20)
         # If the ESC key is pressed then leave the while loop (#27 is the ESC key)

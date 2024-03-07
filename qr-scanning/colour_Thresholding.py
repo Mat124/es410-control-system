@@ -1,4 +1,4 @@
-# Code is from: https://github.com/jumejume1/python-camera1/blob/main/color_thresholding.py
+# Code is found from the following repository: https://github.com/jumejume1/python-camera1/blob/main/color_thresholding.py
 import cv2
 import numpy as np
 
@@ -10,10 +10,12 @@ cap=cv2.VideoCapture(1) # Use external camera (internal is 0)
 
 # Create a trackbar window to configure values for blob analysis
 cv2.namedWindow('Thresholds')
-cv2.createTrackbar('LH','Thresholds',0,255, nothing) # Define the lower Hue bar
-cv2.createTrackbar('LS','Thresholds',0,255, nothing) # lower Saturation bar
-cv2.createTrackbar('LV','Thresholds',0,255, nothing) # lower Value bar
-cv2.createTrackbar('UH','Thresholds',255,255, nothing) # upper Hue bar
+
+# Hue (colours), Saturation (colourfulness), Value (Brightness) track bar lower and upper limits
+cv2.createTrackbar('LH','Thresholds',0,255, nothing)
+cv2.createTrackbar('LS','Thresholds',0,255, nothing)
+cv2.createTrackbar('LV','Thresholds',0,255, nothing)
+cv2.createTrackbar('UH','Thresholds',255,255, nothing)
 cv2.createTrackbar('US','Thresholds',255,255, nothing)
 cv2.createTrackbar('UV','Thresholds',255,255, nothing)
 
@@ -23,27 +25,28 @@ while True:
 	    
 	hsv=cv2.cvtColor(frame,cv2.COLOR_BGR2HSV) # converting the frame from BGR into HSV (hue-saturation-value)
 	
-	lh=cv2.getTrackbarPos('LH','Thresholds') # get lower
+	# Get lower and upper values of Hue, Saturation, and Value from trackbars
+	lh=cv2.getTrackbarPos('LH','Thresholds') 
 	ls=cv2.getTrackbarPos('LS','Thresholds')
-	lv=cv2.getTrackbarPos('LV','Thresholds')
-
+	lv=cv2.getTrackbarPos('LV','Thresholds') 
 	uh=cv2.getTrackbarPos('UH','Thresholds')
 	us=cv2.getTrackbarPos('US','Thresholds')
 	uv=cv2.getTrackbarPos('UV','Thresholds')
 	
-	#defining the Range of color
+	# Defining the Range of colour into an 8-bit type array to reduce space usage
 	colour_lower=np.array([lh,ls,lv],np.uint8)
 	colour_upper=np.array([uh,us,uv],np.uint8)
 	
-	
-	#finding the range of color in the image
-
+	# finding the range of colour in the image
 	colour=cv2.inRange(hsv,colour_lower,colour_upper)
 	
-	#Morphological transformation, Dilation  	
+	# Morphological transformation kernel  	
 	kernal = np.ones((5 ,5), "uint8")
 
-	colour=cv2.dilate(colour,kernal)
+	# Perform dilation on the HSV image using the previously defined kernel
+	colour = cv2.dilate(colour,kernal)
+
+	# Display the original image next to the dilated image
 	cv2.imshow("Color",colour)
 	cv2.imshow("Original Image",frame)	
     
