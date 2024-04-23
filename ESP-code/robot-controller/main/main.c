@@ -19,12 +19,15 @@
 #include "driver/gpio.h"
 #include "driver/ledc.h"
 #include "driver/i2c.h"
+#include "driver/mcpwm_cap.h"
 
 #include "esp_adc/adc_oneshot.h"
 
 #include "esp_timer.h"
 
 #include "mpu6050.h"
+
+#include "esp_private/esp_clk.h"
 
 // warn about unsuitable sdkconfig
 #include "sdkconfig.h"
@@ -58,8 +61,8 @@
 
 #define BAT_VOLTAGE_IO_PIN 39
 #define BAT_TEMP_IO_PIN 36
-#define ULTRASONIC_TRIG_IO_PIN GPIO_NUM_5
-#define ULTRASONIC_ECHO_IO_PIN GPIO_NUM_2
+#define ULTRASONIC_TRIG_IO_PIN 5
+#define ULTRASONIC_ECHO_IO_PIN 2
 
 #define VOLTAGE 'V'
 #define TEMPERATURE 'T'
@@ -103,9 +106,12 @@ void sensor_task(void *pvParameters){
     int batTempReading, batVoltageReading;
     float batTemp = 0;
     float batVoltage = 0;
+    uint32_t tof_ticks;
     float ultrasonicDistance = 0;
     mpu6050_acce_value_t acceValues;
     mpu6050_gyro_value_t gyroValues;
+
+    vTaskSuspend(NULL); // suspend task until explicitly started for the first time
 
     while (1){
         // read battery sensors
@@ -124,17 +130,16 @@ void sensor_task(void *pvParameters){
         }
 
         // read ultrasonic sensor
-        // time between sending and receiving the pulse is proportional to the distance
-        int64_t pulseStart, pulseEnd = 0;
-        pulseStart = esp_timer_get_time();
+        // time (ticks) between sending and receiving the pulse is proportional to the distance
         gpio_set_level(ULTRASONIC_TRIG_IO_PIN, 1);
         vTaskDelay(20 / portTICK_PERIOD_MS); // 20ms delay for the pulse to be sent
         gpio_set_level(ULTRASONIC_TRIG_IO_PIN, 0);
-        // wait for the pulse to be received, or timeout after 100ms
-        while (gpio_get_level(ULTRASONIC_ECHO_IO_PIN) == 0 && pulseEnd - pulseStart < 100000) {
-            pulseEnd = esp_timer_get_time();
+        if (xTaskNotifyWait(0x00, ULONG_MAX, &tof_ticks, pdMS_TO_TICKS(1000)) == pdTRUE) {
+            float pulse_width_us = tof_ticks * (1000000.0 / esp_clk_apb_freq());
+            if (pulse_width_us < 35000) {
+                ultrasonicDistance = (float) pulse_width_us / 5800;
+            }
         }
-        ultrasonicDistance = ((pulseEnd - pulseStart) * 1000000 * 340) / 2; // distance in m
 
         // read MPU6050 data into acceValues and gyroValues
         mpu6050_get_acce(mpu6050dev, &acceValues);
@@ -166,6 +171,7 @@ void sensor_task(void *pvParameters){
 
 // motor task
 void motor_task(void *pvParameters) {
+    vTaskSuspend(NULL); // suspend task until explicitly started for the first time
     while (1){
         // on-board LED
         ledc_set_duty(LEDC_HIGH_SPEED_MODE, LED_CHANNEL, (int)(1024*ledBrightness));
@@ -229,6 +235,29 @@ void i2c_bus_init(void) {
     i2c_driver_install(I2C_MASTER_NUM, conf.mode, 0, 0, 0);
 }
 
+// ultrasonic sensor callback
+static bool ultrasonic_callback(mcpwm_cap_channel_handle_t cap_chan, const mcpwm_capture_event_data_t *event_data, void *sensor_task_handle)
+{
+    static uint32_t cap_val_begin_of_sample = 0;
+    static uint32_t cap_val_end_of_sample = 0;
+    TaskHandle_t task_to_notify = (TaskHandle_t)sensor_task_handle;
+    BaseType_t high_task_wakeup = pdFALSE; // platform dependent
+
+    if (event_data->cap_edge == MCPWM_CAP_EDGE_POS) {
+        // store the timestamp when pos edge is detected
+        cap_val_begin_of_sample = event_data->cap_value;
+        cap_val_end_of_sample = cap_val_begin_of_sample;
+    } else {
+        cap_val_end_of_sample = event_data->cap_value;
+        uint32_t tof_ticks = cap_val_end_of_sample - cap_val_begin_of_sample;
+
+        // notify the task to calculate the distance
+        xTaskNotifyFromISR(task_to_notify, tof_ticks, eSetValueWithOverwrite, &high_task_wakeup);
+    }
+
+    return high_task_wakeup == pdTRUE;
+}
+
 // setup
 // This function initializes the ADC, GPIO, I2C, and LEDC drivers, and sets up the MPU6050 sensor
 void setup() {
@@ -257,11 +286,6 @@ void setup() {
     adc_oneshot_config_channel(adc1, batVoltageChannel, &adc1ChannelCfg);
     adc_oneshot_config_channel(adc1, batTempChannel, &adc1ChannelCfg2);
     printf("Setup channel\n");
-
-    // GPIO setup for ultrasonic sensor
-    gpio_set_direction(ULTRASONIC_TRIG_IO_PIN, GPIO_MODE_OUTPUT);
-    gpio_set_direction(ULTRASONIC_ECHO_IO_PIN, GPIO_MODE_INPUT);
-    printf("GPIO set directions\n");
 
     // init MPU6050
     i2c_bus_init();
@@ -323,6 +347,42 @@ void setup() {
         .timer_sel = LEDC_TIMER_0
     };
     ledc_channel_config(&wmotor_ledc_channel);
+
+    // SONAR SETUP
+    mcpwm_cap_timer_handle_t cap_timer = NULL;
+    mcpwm_capture_timer_config_t cap_conf = {
+        .clk_src = MCPWM_CAPTURE_CLK_SRC_DEFAULT,
+        .group_id = 0,
+    };
+    mcpwm_new_capture_timer(&cap_conf, &cap_timer);
+
+    mcpwm_cap_channel_handle_t cap_chan = NULL;
+    mcpwm_capture_channel_config_t cap_ch_conf = {
+        .gpio_num = ULTRASONIC_ECHO_IO_PIN,
+        .prescale = 1,
+        .flags.neg_edge = true,
+        .flags.pos_edge = true,
+        .flags.pull_up = true,
+    };
+    mcpwm_new_capture_channel(cap_timer, &cap_ch_conf, &cap_chan);
+
+    mcpwm_capture_event_callbacks_t cbs = {
+        .on_cap = ultrasonic_callback,
+    };
+    mcpwm_capture_channel_register_event_callbacks(cap_chan, &cbs, xSensorTaskHandle);
+    mcpwm_capture_channel_enable(cap_chan);
+    gpio_config_t io_conf = {
+        .mode = GPIO_MODE_OUTPUT,
+        .pin_bit_mask = 1ULL << ULTRASONIC_TRIG_IO_PIN,
+    };
+    gpio_config(&io_conf);
+    // drive low by default
+    gpio_set_level(ULTRASONIC_TRIG_IO_PIN, 0);
+
+    mcpwm_capture_timer_enable(cap_timer);
+    mcpwm_capture_timer_start(cap_timer);
+
+
 }
 
 int app_main(void) {
@@ -334,12 +394,16 @@ int app_main(void) {
     btstack_init();
     btstack_main(0, NULL);
 
-    // Setup pins, devices
-    setup();
-
     // Start other tasks (reading sensor data, update motor outputs)
     xTaskCreate(motor_task, "MotorTask", 2048, NULL, 5, &xMotorTaskHandle);
     xTaskCreate(sensor_task, "SensorTask", 2048, NULL, 5, &xSensorTaskHandle);
+
+    // Setup pins, devices
+    setup();
+
+    // Start tasks
+    vTaskResume(xMotorTaskHandle);
+    vTaskResume(xSensorTaskHandle);
 
     // Enter run loop
     btstack_run_loop_execute();

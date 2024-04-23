@@ -1,0 +1,6 @@
+{
+    "files.associations": {
+        "*.gvl": "st",
+        "cstdint": "c"
+    }
+}
