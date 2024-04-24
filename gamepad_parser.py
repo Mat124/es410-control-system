@@ -91,8 +91,8 @@ class GamepadParser:
             self.autonomousMovementHeld = False
 
         # set outputs based on gamepad inputs
-        self.motorOutputs["left"] = self.gamepadModel.values[turn] + self.gamepadModel.values[forward] - self.gamepadModel.values[reverse]
-        self.motorOutputs["right"] = -self.gamepadModel.values[turn] + self.gamepadModel.values[forward] - self.gamepadModel.values[reverse]
+        self.motorOutputs["left"] = -0.3*self.gamepadModel.values[turn] + self.gamepadModel.values[forward] - self.gamepadModel.values[reverse]
+        self.motorOutputs["right"] = 0.3*self.gamepadModel.values[turn] + self.gamepadModel.values[forward] - self.gamepadModel.values[reverse]
         self.motorOutputs["weapon"] = self.gamepadModel.values[weapon]
         self.motorOutputs["led"] = abs(self.gamepadModel.values[led])
 

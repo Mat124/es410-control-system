@@ -99,8 +99,7 @@ class bluetoothCommunicator():
         while self.sock is not None:
             try:
                 data = self.sock.recv(4096)
-                print("Received data: ", data)
-                sections = data.split(b' ') # split data into sections by space
+                sections = data.split(b' ')[:-1] # split data into sections by space
                 for section in sections: # for each section, check the first character and add to sensor data
                     match section[0]:
                         case sensor.VOLTAGE.value:
@@ -141,6 +140,7 @@ class bluetoothCommunicator():
             except Exception as e:
                 print("Error sending motor control: ", e)
                 self.sock = None
+                self.connect('a')
                 return
             
     def sendSerialMsg(self, msg): 

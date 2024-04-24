@@ -98,6 +98,55 @@ float rightMotorSpeed = 0;
 float leftMotorSpeed = 0;
 float weaponMotorSpeed = 0;
 
+// motor task
+void motor_task(void *pvParameters) {
+    vTaskSuspend(NULL); // suspend task until explicitly started for the first time
+    while (1){
+        // on-board LED
+        ledc_set_duty(LEDC_HIGH_SPEED_MODE, LED_CHANNEL, (int)(1024*ledBrightness));
+        ledc_update_duty(LEDC_HIGH_SPEED_MODE, LED_CHANNEL);
+
+        // RIGHT MOTOR
+        // if speed is negative, set direction pin to 0 so motor spins in reverse
+        if (rightMotorSpeed < 0.0) {
+            gpio_set_level(RIGHT_MOTOR_DIR_PIN, 0);
+        }
+        else {
+            gpio_set_level(RIGHT_MOTOR_DIR_PIN, 1);
+        }
+        ledc_set_duty(LEDC_HIGH_SPEED_MODE, RIGHT_MOTOR_CHANNEL, abs((int)(1024*rightMotorSpeed)));
+        ledc_update_duty(LEDC_HIGH_SPEED_MODE, RIGHT_MOTOR_CHANNEL);
+
+        // LEFT MOTOR
+        // if speed is negative, set direction pin to 0 so motor spins in reverse
+        if (leftMotorSpeed < 0.0) {
+            gpio_set_level(LEFT_MOTOR_DIR_PIN, 0);
+        }
+        else {
+            gpio_set_level(LEFT_MOTOR_DIR_PIN, 1);
+        }
+        ledc_set_duty(LEDC_HIGH_SPEED_MODE, LEFT_MOTOR_CHANNEL, abs((int)(1024*leftMotorSpeed)));
+        ledc_update_duty(LEDC_HIGH_SPEED_MODE, LEFT_MOTOR_CHANNEL);
+
+        // WEAPON MOTOR
+        // if speed is negative, set direction pin to 0 so motor spins in reverse
+        if (weaponMotorSpeed < 0.0) {
+            gpio_set_level(WEAPON_MOTOR_DIR_PIN, 0);
+        }
+        else {
+            gpio_set_level(WEAPON_MOTOR_DIR_PIN, 1);
+        }
+        ledc_set_duty(LEDC_HIGH_SPEED_MODE, WEAPON_MOTOR_CHANNEL, abs((int)(1024*weaponMotorSpeed)));
+        ledc_update_duty(LEDC_HIGH_SPEED_MODE, WEAPON_MOTOR_CHANNEL);
+
+        // log motor outputs
+        printf("LED: %f, RIGHT: %f, LEFT: %f, WEAPON: %f\n", ledBrightness, rightMotorSpeed, leftMotorSpeed, weaponMotorSpeed);
+
+        // suspend task (activated on new data), allows other tasks to run
+        vTaskSuspend(NULL);
+    }
+}
+
 // sensor_task
 // This task reads sensor data and writes to lineBuffer every 20ms or so, and
 // requests a bluetooth send. Battery overheating and low voltage is also checked 
@@ -155,7 +204,7 @@ void sensor_task(void *pvParameters){
         // write to lineBuffer
         // take mutex lock for threading safety - prevents lineBuffer from being written to by multiple tasks at once
         xSemaphoreTake(lineBufferMutex, portMAX_DELAY);
-        sprintf((char *)lineBuffer, "T%f V%f D%f X%f Y%f Z%f x%f y%f z%f", 
+        sprintf((char *)lineBuffer, "T%f V%f D%f X%f Y%f Z%f x%f y%f z%f ", 
                                 batTemp, batVoltage, 
                                 ultrasonicDistance, 
                                 acceValues.acce_x, acceValues.acce_y, acceValues.acce_z, 
@@ -166,55 +215,6 @@ void sensor_task(void *pvParameters){
         if (rfcomm_channel_id){
             rfcomm_request_can_send_now_event(rfcomm_channel_id);
         }
-    }
-}
-
-// motor task
-void motor_task(void *pvParameters) {
-    vTaskSuspend(NULL); // suspend task until explicitly started for the first time
-    while (1){
-        // on-board LED
-        ledc_set_duty(LEDC_HIGH_SPEED_MODE, LED_CHANNEL, (int)(1024*ledBrightness));
-        ledc_update_duty(LEDC_HIGH_SPEED_MODE, LED_CHANNEL);
-
-        // RIGHT MOTOR
-        // if speed is negative, set direction pin to 0 so motor spins in reverse
-        if (rightMotorSpeed < 0.0) {
-            gpio_set_level(RIGHT_MOTOR_DIR_PIN, 0);
-        }
-        else {
-            gpio_set_level(RIGHT_MOTOR_DIR_PIN, 1);
-        }
-        ledc_set_duty(LEDC_HIGH_SPEED_MODE, RIGHT_MOTOR_CHANNEL, abs((int)(1024*rightMotorSpeed)));
-        ledc_update_duty(LEDC_HIGH_SPEED_MODE, RIGHT_MOTOR_CHANNEL);
-
-        // LEFT MOTOR
-        // if speed is negative, set direction pin to 0 so motor spins in reverse
-        if (leftMotorSpeed < 0.0) {
-            gpio_set_level(LEFT_MOTOR_DIR_PIN, 0);
-        }
-        else {
-            gpio_set_level(LEFT_MOTOR_DIR_PIN, 1);
-        }
-        ledc_set_duty(LEDC_HIGH_SPEED_MODE, LEFT_MOTOR_CHANNEL, abs((int)(1024*leftMotorSpeed)));
-        ledc_update_duty(LEDC_HIGH_SPEED_MODE, LEFT_MOTOR_CHANNEL);
-
-        // WEAPON MOTOR
-        // if speed is negative, set direction pin to 0 so motor spins in reverse
-        if (weaponMotorSpeed < 0.0) {
-            gpio_set_level(WEAPON_MOTOR_DIR_PIN, 0);
-        }
-        else {
-            gpio_set_level(WEAPON_MOTOR_DIR_PIN, 1);
-        }
-        ledc_set_duty(LEDC_HIGH_SPEED_MODE, WEAPON_MOTOR_CHANNEL, abs((int)(1024*weaponMotorSpeed)));
-        ledc_update_duty(LEDC_HIGH_SPEED_MODE, WEAPON_MOTOR_CHANNEL);
-
-        // log motor outputs
-        printf("LED: %f, RIGHT: %f, LEFT: %f, WEAPON: %f\n", ledBrightness, rightMotorSpeed, leftMotorSpeed, weaponMotorSpeed);
-
-        // suspend task (activated on new data), allows other tasks to run
-        vTaskSuspend(NULL);
     }
 }
 
@@ -329,6 +329,7 @@ void setup() {
     ledc_channel_config(&rmotor_ledc_channel);
 
     // LEFT MOTOR PIN CHANNEL
+    gpio_set_direction(LEFT_MOTOR_DIR_PIN, GPIO_MODE_OUTPUT);
     ledc_channel_config_t lmotor_ledc_channel = {
         .channel = LEFT_MOTOR_CHANNEL,
         .duty = 0,
@@ -339,6 +340,7 @@ void setup() {
     ledc_channel_config(&lmotor_ledc_channel);
 
     // WEAPON MOTOR PIN CHANNEL
+    gpio_set_direction(WEAPON_MOTOR_DIR_PIN, GPIO_MODE_OUTPUT);
     ledc_channel_config_t wmotor_ledc_channel = {
         .channel = WEAPON_MOTOR_CHANNEL,
         .duty = 0,
@@ -381,8 +383,6 @@ void setup() {
 
     mcpwm_capture_timer_enable(cap_timer);
     mcpwm_capture_timer_start(cap_timer);
-
-
 }
 
 int app_main(void) {

@@ -115,7 +115,11 @@ static void packet_handler (uint8_t packet_type, uint16_t channel, uint8_t *pack
              
                 case RFCOMM_EVENT_CHANNEL_CLOSED:
                     printf("RFCOMM channel closed\n");
+                    // failsafe to stop the robot if the connection is lost
                     rfcomm_channel_id = 0;
+                    rightMotorSpeed = 0;
+                    leftMotorSpeed = 0;
+                    weaponMotorSpeed = 0;
                     break;
                 
                 default:

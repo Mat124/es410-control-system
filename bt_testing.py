@@ -29,22 +29,24 @@ if __name__ == "__main__":
 
     BT = bluetoothCommunicator()
 
-    BT.connect()
+    BT.connect('a')
 
     # start sensor thread
 
-    motorLed = input("Enter 1 for motor control, 2 for LED control: ")
+    motorLed = input("Enter 1 for L motor control, 2 for R motor control, 3 for LED control: ")
 
     prepend = ""
 
     if motorLed == "1":
+        prepend = "L"
+    elif motorLed == "2":
         prepend = "R"
     else:
         prepend = "Z"
 
     while True:
-        msg = input("Enter speed [0-1] or 'exit': ")
+        msg = input("Enter speed [-1, 1] or 'exit': ")
         if msg == "exit":
             break
-        BT.sendSerialMsg(prepend + msg + "\n")
+        BT.sendSerialMsg(prepend + msg + " \n")
     
